@@ -11,7 +11,6 @@
 
 import { useState, useCallback } from 'react'
 import apiClient from '../lib/apiClient'
-import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 
 export function usePayments() {
@@ -38,59 +37,13 @@ export function usePayments() {
     setError(null)
 
     try {
-      // ── Step 1: Guard — check the user isn't already a member ──
-      const { data: existing } = await supabase
-        .from('memberships')
-        .select('id, payment_status')
-        .eq('pool_id', poolId)
-        .eq('user_id', user.id)
-        .not('payment_status', 'eq', 'cancelled')
-        .maybeSingle()
-
-      if (existing) {
-        const msg = existing.payment_status === 'active'
-          ? 'You are already an active member of this pool.'
-          : 'You have a pending payment for this pool. Check your email.'
-        setError(msg)
-        return { success: false, alreadyMember: true }
-      }
-
-      // ── Step 2: Guard — check pool still has seats ────────────
-      const { data: pool, error: poolErr } = await supabase
-        .from('pools')
-        .select('id, current_members, max_members, split_price, pool_status')
-        .eq('id', poolId)
-        .single()
-
-      if (poolErr || !pool) {
-        throw new Error('Pool not found.')
-      }
-      if (pool.pool_status !== 'active') {
-        throw new Error('This pool is no longer accepting members.')
-      }
-      if (pool.current_members >= pool.max_members) {
-        throw new Error('This pool is full. No seats available.')
-      }
-
-      // ── Step 3: Create a pending membership row ────────────────
-      // We create the row BEFORE the payment so we have a
-      // membership_id to pass into the Paystack metadata.
-      const { data: membership, error: memErr } = await supabase
-        .from('memberships')
-        .insert({
-          pool_id:        poolId,
-          user_id:        user.id,
-          payment_status: 'pending',
-        })
-        .select('id')
-        .single()
-
-      if (memErr) throw new Error('Failed to reserve your seat. Please try again.')
+      // ── Step 1+2+3: Join via backend (handles guards + creates membership) ──
+      const joinRes = await apiClient.post('/api/memberships/join', { pool_id: poolId })
+      const membership = { id: joinRes.data.membership_id }
 
       // ── Step 4: Ask the backend for a Paystack checkout URL ───
       const { data } = await apiClient.post('/api/payments/initialize', {
         membership_id: membership.id,
-        user_id:       user.id,
       })
 
       // ── Step 5: Redirect to Paystack hosted checkout ──────────

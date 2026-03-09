@@ -1,445 +1,561 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "./context/AuthContext";
 import JoinPoolButton from './components/JoinPoolButton';
 
-const Styles = () => (
-  <style>{`
-    @import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,700;12..96,800&family=Plus+Jakarta+Sans:wght@300;400;500;600&display=swap');
-    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
-    html{scroll-behavior:smooth;}
-    body{-webkit-font-smoothing:antialiased;}
-    h1,h2,h3,h4{font-family:'Bricolage Grotesque',sans-serif;}
+const favicon = (domain) => `https://www.google.com/s2/favicons?domain=${domain}&sz=64`;
 
-    .app{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg-page);color:var(--ink-1);min-height:100vh;transition:background .35s,color .35s;}
-
-    .light{
-      --bg-page:#F4EFE6;--bg-surface:#FFFFFF;--bg-elevated:#F9F6F1;--bg-invert:#0B3D2E;
-      --border:#E2DAD0;--border-strong:#C8BFB3;
-      --ink-1:#111111;--ink-2:#666666;--ink-3:#BBBBBB;--ink-4:#F0EDE8;
-      --accent:#0B3D2E;--accent-mid:#1A5C42;--accent-pale:#E8F5EF;--accent-ring:#C5E0D4;--accent-text:#0B3D2E;
-      --amber:#C97B1A;--amber-pale:#FEF3E2;--amber-ring:#F0D5A0;
-      --shadow-sm:0 1px 3px rgba(0,0,0,.06),0 1px 2px rgba(0,0,0,.04);
-      --shadow-md:0 4px 16px rgba(0,0,0,.08),0 2px 6px rgba(0,0,0,.04);
-      --nav-bg:rgba(244,239,230,.93);
-      --hiw-bg:#0B3D2E;--hiw-step:rgba(255,255,255,.06);--hiw-step-h:rgba(255,255,255,.11);
-      --hiw-t:#FFFFFF;--hiw-d:rgba(255,255,255,.52);--hiw-l:rgba(255,255,255,.38);
-      --progress-track:#F0EDE8;--btn-primary-text:#FFFFFF;--toggle-active:#FFFFFF;
-    }
-
-    .dark{
-      --bg-page:#080C10;--bg-surface:#0D1117;--bg-elevated:#131B24;--bg-invert:#131B24;
-      --border:#1E2D3D;--border-strong:#2E4A60;
-      --ink-1:#F0F6FC;--ink-2:#8B9BB4;--ink-3:#3A4A5C;--ink-4:#131B24;
-      --accent:#00E87A;--accent-mid:#00C060;--accent-pale:#00E87A14;--accent-ring:#00E87A38;--accent-text:#00E87A;
-      --amber:#F5A623;--amber-pale:#F5A62314;--amber-ring:#F5A62338;
-      --shadow-sm:0 1px 3px rgba(0,0,0,.35);
-      --shadow-md:0 4px 20px rgba(0,0,0,.5);
-      --nav-bg:rgba(8,12,16,.93);
-      --hiw-bg:#0D1117;--hiw-step:#131B24;--hiw-step-h:#1A2535;
-      --hiw-t:#F0F6FC;--hiw-d:#8B9BB4;--hiw-l:#3A4A5C;
-      --progress-track:#1E2D3D;--btn-primary-text:#000000;--toggle-active:#0D1117;
-    }
-
-    .nav{position:fixed;top:0;left:0;right:0;z-index:200;background:var(--nav-bg);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);border-bottom:1px solid var(--border);transition:background .35s,border-color .35s,box-shadow .3s;}
-    .nav.scrolled{box-shadow:var(--shadow-sm);}
-    .nav-inner{max-width:1200px;margin:0 auto;padding:0 24px;display:flex;align-items:center;justify-content:space-between;height:62px;}
-    .logo{display:flex;align-items:center;gap:9px;text-decoration:none;}
-    .logo-mark{width:30px;height:30px;border-radius:8px;background:var(--accent);display:flex;align-items:center;justify-content:center;color:var(--btn-primary-text);font-family:'Bricolage Grotesque',sans-serif;font-size:15px;font-weight:800;transition:background .35s,color .35s;}
-    .logo-text{font-family:'Bricolage Grotesque',sans-serif;font-size:17px;font-weight:700;color:var(--ink-1);letter-spacing:-.4px;transition:color .35s;}
-    .logo-text span{color:var(--accent);transition:color .35s;}
-    .nav-links{display:flex;align-items:center;gap:28px;}
-    .nav-links a{font-size:13.5px;font-weight:500;color:var(--ink-2);text-decoration:none;transition:color .15s;}
-    .nav-links a:hover{color:var(--ink-1);}
-    .nav-right{display:flex;align-items:center;gap:10px;}
-    .toggle{display:flex;align-items:center;background:var(--bg-elevated);border:1px solid var(--border);border-radius:10px;padding:3px;gap:0;transition:background .35s,border-color .35s;}
-    .toggle-btn{width:30px;height:26px;display:flex;align-items:center;justify-content:center;border-radius:7px;border:none;background:none;font-size:14px;cursor:pointer;transition:background .2s,box-shadow .2s;}
-    .toggle-btn.on{background:var(--toggle-active);box-shadow:var(--shadow-sm);}
-    .btn-ghost{font-family:'Plus Jakarta Sans',sans-serif;font-size:13px;font-weight:500;color:var(--ink-2);background:none;border:1px solid var(--border);border-radius:9px;padding:8px 16px;cursor:pointer;transition:all .15s;}
-    .btn-ghost:hover{border-color:var(--border-strong);color:var(--ink-1);background:var(--bg-elevated);}
-    .btn-solid{font-family:'Plus Jakarta Sans',sans-serif;font-size:13px;font-weight:600;background:var(--accent);color:var(--btn-primary-text);border:none;border-radius:9px;padding:9px 18px;cursor:pointer;transition:all .2s;}
-    .btn-solid:hover{background:var(--accent-mid);transform:translateY(-1px);box-shadow:0 4px 14px rgba(0,0,0,.28);}
-
-    .ticker{background:var(--bg-surface);border-bottom:1px solid var(--border);padding:10px 0;overflow:hidden;transition:background .35s,border-color .35s;}
-    @keyframes tick{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
-    .ticker-track{display:inline-flex;gap:48px;animation:tick 30s linear infinite;white-space:nowrap;}
-    .tick-item{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:500;color:var(--ink-2);}
-    .tick-dot{width:5px;height:5px;border-radius:50%;background:var(--accent);flex-shrink:0;transition:background .35s;}
-
-    .hero{max-width:1200px;margin:0 auto;padding:112px 24px 68px;}
-    .eyebrow{display:inline-flex;align-items:center;gap:8px;font-size:11.5px;font-weight:600;letter-spacing:.7px;text-transform:uppercase;color:var(--accent-text);background:var(--accent-pale);border:1px solid var(--accent-ring);border-radius:100px;padding:5px 14px;margin-bottom:26px;transition:all .35s;}
-    .eyebrow-dot{width:6px;height:6px;border-radius:50%;background:var(--accent);flex-shrink:0;transition:background .35s;}
-    .hero-h{font-size:clamp(36px,5.5vw,64px);font-weight:800;line-height:1.04;letter-spacing:-2.5px;color:var(--ink-1);max-width:760px;margin-bottom:20px;transition:color .35s;}
-    .hero-h em{font-style:normal;color:var(--accent);transition:color .35s;}
-    .hero-sub{font-size:clamp(15px,1.8vw,17px);font-weight:400;color:var(--ink-2);line-height:1.65;max-width:480px;margin-bottom:34px;transition:color .35s;}
-    .hero-btns{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:52px;}
-    .btn-primary{font-family:'Plus Jakarta Sans',sans-serif;font-size:15px;font-weight:600;background:var(--accent);color:var(--btn-primary-text);border:none;border-radius:12px;padding:14px 28px;cursor:pointer;display:flex;align-items:center;gap:8px;transition:all .2s;}
-    .btn-primary:hover{background:var(--accent-mid);transform:translateY(-1px);box-shadow:0 6px 24px rgba(0,0,0,.28);}
-    .btn-secondary{font-family:'Plus Jakarta Sans',sans-serif;font-size:15px;font-weight:500;color:var(--ink-1);background:var(--bg-surface);border:1px solid var(--border);border-radius:12px;padding:14px 26px;cursor:pointer;transition:all .2s;}
-    .btn-secondary:hover{border-color:var(--border-strong);transform:translateY(-1px);box-shadow:var(--shadow-sm);}
-    .stats{display:flex;background:var(--bg-surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;width:fit-content;box-shadow:var(--shadow-sm);transition:background .35s,border-color .35s;}
-    .stat{padding:15px 28px;text-align:center;border-right:1px solid var(--border);transition:border-color .35s;}
-    .stat:last-child{border-right:none;}
-    .stat-n{font-family:'Bricolage Grotesque',sans-serif;font-size:22px;font-weight:800;color:var(--ink-1);letter-spacing:-.8px;display:block;transition:color .35s;}
-    .stat-l{font-size:11.5px;font-weight:500;color:var(--ink-2);margin-top:2px;white-space:nowrap;transition:color .35s;}
-
-    .trust{border-top:1px solid var(--border);border-bottom:1px solid var(--border);background:var(--bg-surface);padding:13px 24px;transition:background .35s,border-color .35s;}
-    .trust-inner{max-width:1200px;margin:0 auto;display:flex;align-items:center;justify-content:center;gap:28px;flex-wrap:wrap;}
-    .trust-item{display:flex;align-items:center;gap:7px;font-size:12.5px;font-weight:500;color:var(--ink-2);transition:color .35s;}
-
-    .market{max-width:1200px;margin:0 auto;padding:52px 24px 96px;}
-    .sec-label{font-size:11px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:var(--ink-2);margin-bottom:6px;transition:color .35s;}
-    .sec-title{font-size:clamp(22px,2.8vw,30px);font-weight:800;letter-spacing:-.8px;color:var(--ink-1);transition:color .35s;}
-    .controls{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:22px;}
-    .search-wrap{position:relative;flex:1;min-width:240px;max-width:400px;}
-    .search-icon{position:absolute;left:14px;top:50%;transform:translateY(-50%);color:var(--ink-3);font-size:15px;pointer-events:none;}
-    .search-input{width:100%;font-family:'Plus Jakarta Sans',sans-serif;font-size:13.5px;color:var(--ink-1);background:var(--bg-surface);border:1px solid var(--border);border-radius:9px;padding:10px 14px 10px 40px;outline:none;transition:all .2s;}
-    .search-input::placeholder{color:var(--ink-3);}
-    .search-input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-pale);}
-    .sort{font-family:'Plus Jakarta Sans',sans-serif;font-size:13px;font-weight:500;color:var(--ink-2);background:var(--bg-surface);border:1px solid var(--border);border-radius:9px;padding:10px 14px;outline:none;cursor:pointer;transition:background .35s,color .35s,border-color .35s;}
-
-    .cats{display:flex;gap:6px;margin-bottom:28px;overflow-x:auto;padding-bottom:2px;}
-    .cats::-webkit-scrollbar{display:none;}
-    .cat{font-family:'Plus Jakarta Sans',sans-serif;font-size:13px;font-weight:500;border-radius:100px;padding:7px 16px;border:1px solid var(--border);cursor:pointer;white-space:nowrap;transition:all .18s;background:var(--bg-surface);color:var(--ink-2);display:flex;align-items:center;gap:6px;}
-    .cat:hover{border-color:var(--border-strong);color:var(--ink-1);}
-    .cat.active{background:var(--accent);color:var(--btn-primary-text);border-color:var(--accent);}
-    .cat-n{font-size:10px;font-weight:700;background:rgba(255,255,255,.18);border-radius:100px;padding:1px 6px;}
-    .cat:not(.active) .cat-n{background:var(--ink-4);color:var(--ink-2);}
-
-    .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,308px),1fr));gap:16px;}
-
-    .card{background:var(--bg-surface);border:1px solid var(--border);border-radius:20px;padding:22px;cursor:pointer;display:flex;flex-direction:column;transition:box-shadow .22s,transform .22s,border-color .22s,background .35s;}
-    @keyframes cIn{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
-    .card{animation:cIn .4s ease both;}
-    .card:nth-child(1){animation-delay:.04s}.card:nth-child(2){animation-delay:.08s}.card:nth-child(3){animation-delay:.12s}.card:nth-child(4){animation-delay:.16s}.card:nth-child(5){animation-delay:.20s}.card:nth-child(6){animation-delay:.24s}.card:nth-child(7){animation-delay:.28s}.card:nth-child(8){animation-delay:.32s}.card:nth-child(9){animation-delay:.36s}.card:nth-child(10){animation-delay:.40s}.card:nth-child(11){animation-delay:.44s}.card:nth-child(12){animation-delay:.48s}
-    .card:hover{box-shadow:var(--shadow-md);transform:translateY(-3px);border-color:var(--accent-ring);}
-    .card-top{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:18px;}
-    .card-svc{display:flex;align-items:center;gap:12px;}
-
-    /* ── Real brand icon ── */
-    .svc-icon{
-      width:44px;height:44px;border-radius:12px;
-      display:flex;align-items:center;justify-content:center;
-      flex-shrink:0;border:1px solid var(--border);
-      overflow:hidden;transition:border-color .35s;
-    }
-    .svc-icon img{
-      width:26px;height:26px;object-fit:contain;
-      display:block;transition:filter .35s;
-    }
-
-    .svc-name{font-family:'Bricolage Grotesque',sans-serif;font-size:15px;font-weight:700;color:var(--ink-1);letter-spacing:-.3px;line-height:1.2;transition:color .35s;}
-    .svc-host{font-size:12px;color:var(--ink-2);margin-top:2px;transition:color .35s;}
-    .badge{font-family:'Plus Jakarta Sans',sans-serif;font-size:10.5px;font-weight:700;border-radius:6px;padding:3px 9px;white-space:nowrap;flex-shrink:0;}
-    .badge-v{background:var(--accent-pale);color:var(--accent-text);border:1px solid var(--accent-ring);}
-    .badge-e{background:var(--amber-pale);color:var(--amber);border:1px solid var(--amber-ring);}
-    .card-div{height:1px;background:var(--border);margin:0 0 18px;transition:background .35s;}
-    .price-row{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:14px;}
-    .price{font-family:'Bricolage Grotesque',sans-serif;font-size:27px;font-weight:800;color:var(--ink-1);letter-spacing:-1px;transition:color .35s;}
-    .price-unit{font-size:12px;color:var(--ink-2);margin-left:3px;transition:color .35s;}
-    .savings{font-size:11.5px;font-weight:700;color:var(--accent-text);background:var(--accent-pale);border-radius:6px;padding:3px 9px;transition:all .35s;}
-    .seats-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;}
-    .seats-l{font-size:11.5px;font-weight:500;color:var(--ink-2);transition:color .35s;}
-    .seats-w{font-size:11.5px;font-weight:600;color:var(--amber);}
-    .bar{height:4px;background:var(--progress-track);border-radius:2px;overflow:hidden;margin-bottom:18px;transition:background .35s;}
-    .bar-fill{height:100%;border-radius:2px;background:var(--accent);transition:width .4s ease,background .35s;}
-    .bar-fill.w{background:var(--amber);}
-    .card-bot{display:flex;align-items:center;justify-content:space-between;border-top:1px solid var(--border);padding-top:16px;margin-top:auto;transition:border-color .35s;}
-    .renew{font-size:11.5px;color:var(--ink-2);transition:color .35s;}
-    .renew strong{font-weight:600;color:var(--ink-1);transition:color .35s;}
-    .btn-join{font-family:'Plus Jakarta Sans',sans-serif;font-size:13px;font-weight:600;color:var(--accent-text);background:var(--accent-pale);border:1px solid var(--accent-ring);border-radius:8px;padding:8px 18px;cursor:pointer;transition:all .15s;}
-    .btn-join:hover{background:var(--accent);color:var(--btn-primary-text);border-color:var(--accent);}
-
-    .empty{grid-column:1/-1;text-align:center;padding:80px 20px;}
-    .empty-t{font-family:'Bricolage Grotesque',sans-serif;font-size:18px;font-weight:700;color:var(--ink-1);margin-bottom:6px;}
-    .empty-s{font-size:13.5px;color:var(--ink-2);}
-
-    .hiw{background:var(--hiw-bg);padding:80px 24px;transition:background .35s;}
-    .hiw-in{max-width:1200px;margin:0 auto;}
-    .hiw-lbl{font-size:11px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:var(--hiw-l);margin-bottom:8px;transition:color .35s;}
-    .hiw-ttl{font-size:clamp(24px,3vw,36px);font-weight:800;letter-spacing:-1px;color:var(--hiw-t);line-height:1.1;margin-bottom:48px;transition:color .35s;}
-    .hiw-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:2px;}
-    .hiw-step{background:var(--hiw-step);padding:28px 24px;border-radius:0;transition:background .2s;}
-    .hiw-step:first-child{border-radius:12px 0 0 12px;}
-    .hiw-step:last-child{border-radius:0 12px 12px 0;}
-    .hiw-step:hover{background:var(--hiw-step-h);}
-    .hiw-num{font-family:'Bricolage Grotesque',sans-serif;font-size:11px;font-weight:800;letter-spacing:1px;color:var(--hiw-l);margin-bottom:14px;transition:color .35s;}
-    .hiw-icon{font-size:26px;margin-bottom:12px;display:block;}
-    .hiw-st{font-family:'Bricolage Grotesque',sans-serif;font-size:16px;font-weight:700;color:var(--hiw-t);margin-bottom:8px;transition:color .35s;}
-    .hiw-sd{font-size:13.5px;color:var(--hiw-d);line-height:1.6;transition:color .35s;}
-
-    .cta{max-width:1200px;margin:0 auto;padding:60px 24px;}
-    .cta-card{background:var(--bg-surface);border:1px solid var(--border);border-radius:20px;padding:48px 44px;display:flex;align-items:center;justify-content:space-between;gap:28px;flex-wrap:wrap;box-shadow:var(--shadow-sm);transition:background .35s,border-color .35s;}
-    .cta-t{font-size:clamp(22px,2.8vw,30px);font-weight:800;letter-spacing:-.8px;color:var(--ink-1);margin-bottom:8px;transition:color .35s;}
-    .cta-s{font-size:14px;color:var(--ink-2);line-height:1.6;max-width:420px;transition:color .35s;}
-
-    .footer{border-top:1px solid var(--border);background:var(--bg-surface);padding:28px 24px;transition:background .35s,border-color .35s;}
-    .footer-in{max-width:1200px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:14px;}
-    .flogo{font-family:'Bricolage Grotesque',sans-serif;font-size:16px;font-weight:700;color:var(--ink-1);transition:color .35s;}
-    .flogo span{color:var(--accent);transition:color .35s;}
-    .flinks{display:flex;gap:22px;}
-    .flinks a{font-size:12.5px;font-weight:500;color:var(--ink-2);text-decoration:none;transition:color .15s;}
-    .flinks a:hover{color:var(--ink-1);}
-    .fcopy{font-size:12.5px;color:var(--ink-3);transition:color .35s;}
-
-    @media(max-width:680px){
-      .nav-links{display:none;}
-      .stats{flex-direction:column;width:100%;}
-      .stat{border-right:none;border-bottom:1px solid var(--border);}
-      .stat:last-child{border-bottom:none;}
-      .hiw-step:first-child{border-radius:12px 12px 0 0;}
-      .hiw-step:last-child{border-radius:0 0 12px 12px;}
-      .cta-card{padding:32px 24px;}
-      .controls{flex-direction:column;align-items:stretch;}
-      .search-wrap{max-width:100%;}
-    }
-  `}</style>
-);
-
-// ── Brand icon URLs from cdn.simpleicons.org ─────────────────
-// Format: https://cdn.simpleicons.org/{slug}/{hex-color}
-// Dark mode gets a lighter tint of each brand color.
-const BRAND_ICONS = {
-  chatgpt:    { light: "https://cdn.simpleicons.org/openai/10A37F",       dark: "https://cdn.simpleicons.org/openai/3ECF8E"       },
-  claude:     { light: "https://cdn.simpleicons.org/anthropic/CC785C",    dark: "https://cdn.simpleicons.org/anthropic/E8967A"    },
-  cursor:     { light: "https://cdn.simpleicons.org/cursor/000000",       dark: "https://cdn.simpleicons.org/cursor/FFFFFF"       },
-  midjourney: { light: "https://cdn.simpleicons.org/midjourney/000000",   dark: "https://cdn.simpleicons.org/midjourney/FFFFFF"   },
-  netflix:    { light: "https://cdn.simpleicons.org/netflix/E50914",      dark: "https://cdn.simpleicons.org/netflix/E50914"      },
-  prime:      { light: "https://cdn.simpleicons.org/amazonprime/00A8E1",  dark: "https://cdn.simpleicons.org/amazonprime/00A8E1"  },
-  showmax:    { light: "https://cdn.simpleicons.org/showmax/E82929",      dark: "https://cdn.simpleicons.org/showmax/E82929"      },
-  youtube:    { light: "https://cdn.simpleicons.org/youtube/FF0000",      dark: "https://cdn.simpleicons.org/youtube/FF0000"      },
-  canva:      { light: "https://cdn.simpleicons.org/canva/00C4CC",        dark: "https://cdn.simpleicons.org/canva/00C4CC"        },
-  microsoft:  { light: "https://cdn.simpleicons.org/microsoft/737373",    dark: "https://cdn.simpleicons.org/microsoft/AAAAAA"    },
-  adobe:      { light: "https://cdn.simpleicons.org/adobe/FF0000",        dark: "https://cdn.simpleicons.org/adobe/FF0000"        },
-  spotify:    { light: "https://cdn.simpleicons.org/spotify/1DB954",      dark: "https://cdn.simpleicons.org/spotify/1DB954"      },
-  applemusic: { light: "https://cdn.simpleicons.org/applemusic/FC3C44",   dark: "https://cdn.simpleicons.org/applemusic/FC3C44"   },
-  playstation:{ light: "https://cdn.simpleicons.org/playstation/003EA6",  dark: "https://cdn.simpleicons.org/playstation/4A7FD4"  },
-  xbox:       { light: "https://cdn.simpleicons.org/xbox/107C10",         dark: "https://cdn.simpleicons.org/xbox/52B043"         },
-  google:     { light: "https://cdn.simpleicons.org/google/4285F4",       dark: "https://cdn.simpleicons.org/google/4285F4"       },
+// Map service names to correct domains for favicon lookup
+const DOMAIN_MAP = {
+  'netflix': 'netflix.com',
+  'spotify': 'spotify.com',
+  'youtube': 'youtube.com',
+  'chatgpt': 'openai.com',
+  'openai': 'openai.com',
+  'claude': 'claude.ai',
+  'amazon': 'primevideo.com',
+  'prime': 'primevideo.com',
+  'canva': 'canva.com',
+  'adobe': 'adobe.com',
+  'microsoft': 'microsoft.com',
+  'apple': 'apple.com',
+  'playstation': 'playstation.com',
+  'xbox': 'xbox.com',
+  'google': 'google.com',
+  'midjourney': 'midjourney.com',
+  'showmax': 'showmax.com',
+  'cursor': 'cursor.com',
+  'notion': 'notion.so',
+  'figma': 'figma.com',
+  'dropbox': 'dropbox.com',
+  'duolingo': 'duolingo.com',
+  'disney': 'disneyplus.com',
+  'hbo': 'max.com',
+  'dstv': 'dstv.com',
+  'boomplay': 'boomplay.com',
+  'audiomack': 'audiomack.com',
 };
 
-const CATS = ["All","AI & Dev Tools","Entertainment","Creative & Work","Music","Gaming & Storage"];
+function getDomain(serviceName) {
+  if (!serviceName) return 'google.com';
+  const lower = serviceName.toLowerCase();
+  for (const [key, domain] of Object.entries(DOMAIN_MAP)) {
+    if (lower.includes(key)) return domain;
+  }
+  // fallback: take first word, strip spaces
+  return lower.split(' ')[0].replace(/[^a-z]/g, '') + '.com';
+}
 
-const POOLS = [
-  {id:1,  cat:"AI & Dev Tools",   svc:"ChatGPT Plus",            icon:"chatgpt",     bg:{l:"#F0FDF4",d:"#10A37F10"}, host:"Tunde A.",   total:30000, price:7500,  max:4, filled:2, ver:true,  renew:18},
-  {id:2,  cat:"AI & Dev Tools",   svc:"Claude Pro",              icon:"claude",      bg:{l:"#FFF8F5",d:"#CC785C10"}, host:"Amaka O.",   total:28000, price:9500,  max:3, filled:1, ver:true,  renew:6 },
-  {id:3,  cat:"AI & Dev Tools",   svc:"Cursor AI",               icon:"cursor",      bg:{l:"#F5F5F5",d:"#FFFFFF08"}, host:"Emeka S.",   total:24000, price:8000,  max:3, filled:2, ver:false, renew:22},
-  {id:4,  cat:"AI & Dev Tools",   svc:"Midjourney",              icon:"midjourney",  bg:{l:"#F5F5F5",d:"#FFFFFF08"}, host:"Chisom N.",  total:36000, price:9000,  max:4, filled:3, ver:true,  renew:11},
-  {id:5,  cat:"Entertainment",    svc:"Netflix Premium",         icon:"netflix",     bg:{l:"#FFF0F0",d:"#E5000010"}, host:"Seun B.",    total:25600, price:6400,  max:4, filled:1, ver:true,  renew:14},
-  {id:6,  cat:"Entertainment",    svc:"Amazon Prime Video",      icon:"prime",       bg:{l:"#F0F9FF",d:"#00A8E110"}, host:"Kemi F.",    total:18000, price:4500,  max:4, filled:3, ver:true,  renew:3 },
-  {id:7,  cat:"Entertainment",    svc:"Showmax Premier League",  icon:"showmax",     bg:{l:"#FFF0F0",d:"#E8292910"}, host:"Bola T.",    total:32000, price:8000,  max:4, filled:2, ver:false, renew:30},
-  {id:8,  cat:"Entertainment",    svc:"YouTube Premium Family",  icon:"youtube",     bg:{l:"#FFF0F0",d:"#FF000010"}, host:"Uche M.",    total:15000, price:2500,  max:6, filled:4, ver:true,  renew:9 },
-  {id:9,  cat:"Creative & Work",  svc:"Canva for Teams",         icon:"canva",       bg:{l:"#F0FFFE",d:"#00C4CC10"}, host:"Ngozi A.",   total:45000, price:9000,  max:5, filled:3, ver:true,  renew:20},
-  {id:10, cat:"Creative & Work",  svc:"Microsoft 365 Family",    icon:"microsoft",   bg:{l:"#F0F8FF",d:"#73737310"}, host:"Dami P.",    total:42000, price:7000,  max:6, filled:5, ver:true,  renew:17},
-  {id:11, cat:"Creative & Work",  svc:"Adobe Creative Cloud",    icon:"adobe",       bg:{l:"#FFF0F0",d:"#FF000010"}, host:"Femi O.",    total:95000, price:23750, max:4, filled:1, ver:false, renew:25},
-  {id:12, cat:"Music",            svc:"Spotify Family",          icon:"spotify",     bg:{l:"#F0FDF5",d:"#1DB95410"}, host:"Zara K.",    total:12000, price:2000,  max:6, filled:4, ver:true,  renew:5 },
-  {id:13, cat:"Music",            svc:"Apple Music Family",      icon:"applemusic",  bg:{l:"#FFF5F7",d:"#FC3C4410"}, host:"Tola A.",    total:14000, price:2800,  max:5, filled:2, ver:true,  renew:12},
-  {id:14, cat:"Gaming & Storage", svc:"PS Plus Extra",           icon:"playstation", bg:{l:"#F0F4FF",d:"#003EA610"}, host:"Kunle R.",   total:28000, price:7000,  max:4, filled:2, ver:true,  renew:8 },
-  {id:15, cat:"Gaming & Storage", svc:"Xbox Game Pass Ultimate", icon:"xbox",        bg:{l:"#F0FBF0",d:"#10760010"}, host:"Chidi N.",   total:26000, price:6500,  max:4, filled:1, ver:false, renew:19},
-  {id:16, cat:"Gaming & Storage", svc:"Google One 2TB",          icon:"google",      bg:{l:"#F5F8FF",d:"#4285F410"}, host:"Adaeze I.",  total:9500,  price:2375,  max:4, filled:3, ver:true,  renew:26},
+const POOL_DATA = [
+  {id:1,  cat:"Music",       svc:"Spotify Family",       domain:"spotify.com",       host:"Zara K.",    price:2000,  retail:7900,  max:6, filled:4, renew:5,  ver:true  },
+  {id:2,  cat:"Video",       svc:"Netflix Premium",      domain:"netflix.com",        host:"Seun B.",    price:6400,  retail:25600, max:4, filled:1, renew:14, ver:true  },
+  {id:3,  cat:"Video",       svc:"YouTube Premium",      domain:"youtube.com",        host:"Uche M.",    price:2500,  retail:11900, max:6, filled:4, renew:9,  ver:true  },
+  {id:4,  cat:"AI Tools",    svc:"ChatGPT Plus",         domain:"openai.com",         host:"Tunde A.",   price:7500,  retail:30000, max:4, filled:2, renew:18, ver:true  },
+  {id:5,  cat:"AI Tools",    svc:"Claude Pro",           domain:"claude.ai",          host:"Amaka O.",   price:9500,  retail:28000, max:3, filled:1, renew:6,  ver:true  },
+  {id:6,  cat:"Video",       svc:"Amazon Prime Video",   domain:"primevideo.com",     host:"Kemi F.",    price:4500,  retail:18000, max:4, filled:3, renew:3,  ver:true  },
+  {id:7,  cat:"Creative",    svc:"Canva for Teams",      domain:"canva.com",          host:"Ngozi A.",   price:9000,  retail:45000, max:5, filled:3, renew:20, ver:true  },
+  {id:8,  cat:"Creative",    svc:"Adobe Creative Cloud", domain:"adobe.com",          host:"Femi O.",    price:23750, retail:95000, max:4, filled:1, renew:25, ver:false },
+  {id:9,  cat:"Productivity",svc:"Microsoft 365 Family", domain:"microsoft.com",      host:"Dami P.",    price:7000,  retail:42000, max:6, filled:5, renew:17, ver:true  },
+  {id:10, cat:"Music",       svc:"Apple Music Family",   domain:"music.apple.com",    host:"Tola A.",    price:2800,  retail:14000, max:5, filled:2, renew:12, ver:true  },
+  {id:11, cat:"Gaming",      svc:"PS Plus Extra",        domain:"playstation.com",    host:"Kunle R.",   price:7000,  retail:28000, max:4, filled:2, renew:8,  ver:true  },
+  {id:12, cat:"Gaming",      svc:"Xbox Game Pass",       domain:"xbox.com",           host:"Chidi N.",   price:6500,  retail:26000, max:4, filled:1, renew:19, ver:false },
+  {id:13, cat:"Storage",     svc:"Google One 2TB",       domain:"one.google.com",     host:"Adaeze I.",  price:2375,  retail:9500,  max:4, filled:3, renew:26, ver:true  },
+  {id:14, cat:"AI Tools",    svc:"Midjourney",           domain:"midjourney.com",     host:"Chisom N.",  price:9000,  retail:36000, max:4, filled:3, renew:11, ver:true  },
+  {id:15, cat:"Video",       svc:"Showmax",              domain:"showmax.com",        host:"Bola T.",    price:8000,  retail:32000, max:4, filled:2, renew:30, ver:false },
+  {id:16, cat:"AI Tools",    svc:"Cursor AI",            domain:"cursor.com",         host:"Emeka S.",   price:8000,  retail:24000, max:3, filled:2, renew:22, ver:false },
 ];
 
-const TICKS = ["847 active pools live","Zero failed payouts this month","48-Hour Escrow on all public pools","Auto-billing — charge once, relax forever","New Netflix pool — 3 seats left","Spotify Family — 2 seats left","Adobe CC pool just opened"];
+const CATEGORIES = ["All","Music","Video","AI Tools","Creative","Productivity","Gaming","Storage"];
 
+const FAQS = [
+  {q:"Is it legal to share a subscription?", a:"Yes. We only list subscriptions that officially support multiple users or family plans — like Spotify Family, Netflix, and Microsoft 365. All sharing is done within each platform's own terms of service."},
+  {q:"How does the 48-hour escrow work?", a:"When you join a pool, your payment is held for 48 hours while you verify that the credentials actually work. If they don't, raise a dispute and get a full automatic refund. If all is well, the host gets paid."},
+  {q:"What if the host changes the password?", a:"That triggers an automatic dispute. Our system detects access failures and freezes the host's payout until the issue is resolved. Repeat offenders are permanently banned from the platform."},
+  {q:"How do I receive my monthly payout as a host?", a:"Set up your Nigerian bank account once in Payout Settings. Every billing cycle, your earnings are transferred directly to your account via Paystack — no manual action needed."},
+  {q:"Can I cancel anytime?", a:"Yes. Cancel from your subscriptions page at any time. You keep access until the end of the current billing period. No lock-in, no cancellation fees."},
+  {q:"What payment methods are accepted?", a:"We accept all Nigerian debit cards, bank transfers, and USSD via Paystack. Your card is saved securely for automatic monthly billing — you only need to enter it once."},
+];
+
+const TICKERS = ["847 active pools live","Zero failed payouts this month","48-Hour Escrow on all pools","Auto-billing — charge once, relax forever","New Netflix pool — 3 seats left","Spotify Family — 2 seats left","Adobe CC pool just opened"];
+
+export default function Marketplace() {
+  const [dark, setDark] = useState(() => localStorage.getItem("spng-theme") === "dark");
+  useEffect(() => { localStorage.setItem("spng-theme", dark ? "dark" : "light"); }, [dark]);
+  return (
+    <div className={`mp ${dark ? "dark" : "light"}`}>
+      <Styles />
+      <NavBar dark={dark} setDark={setDark} />
+      <div style={{marginTop:62}}><Ticker /></div>
+      <Hero />
+      <PoolGrid />
+      <HowItWorks />
+      <SavingsCalc />
+      <WhyUs />
+      <FaqSection />
+      <CTABanner />
+      <Footer />
+    </div>
+  );
+}
+
+function Styles() {
+  return <style>{`
+    @import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,700;12..96,800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+    html{scroll-behavior:smooth;}
+    .mp.light{
+      --bg:#F4EFE6;--surface:#fff;--border:#E5DDD4;--border2:#C9BAA8;
+      --ink1:#111;--ink2:#555;--ink3:#999;
+      --accent:#0B3D2E;--accent2:#1A5C42;--accent-pale:#E8F5EF;--accent-ring:#C5E0D4;--accent-text:#1A5C42;
+      --card:#fff;--nav-bg:rgba(244,239,230,0.95);
+      --ticker-bg:#0B3D2E;--ticker-c:#fff;
+      --hiw-bg:#0B3D2E;--hiw-t:#fff;--hiw-m:rgba(255,255,255,0.5);
+      --calc-bg:#111;--calc-t:#fff;
+      --tag:#F0EDE8;--tag-t:#666;
+      --sh:0 2px 16px rgba(0,0,0,.07);--sh2:0 8px 40px rgba(0,0,0,.12);
+    }
+    .mp.dark{
+      --bg:#0D0D0D;--surface:#161616;--border:#252525;--border2:#333;
+      --ink1:#F0F0F0;--ink2:#AAA;--ink3:#555;
+      --accent:#2ECC71;--accent2:#27AE60;--accent-pale:#0A1F12;--accent-ring:#1A5C42;--accent-text:#2ECC71;
+      --card:#1A1A1A;--nav-bg:rgba(13,13,13,0.96);
+      --ticker-bg:#0A0A0A;--ticker-c:#2ECC71;
+      --hiw-bg:#111;--hiw-t:#F0F0F0;--hiw-m:rgba(255,255,255,0.4);
+      --calc-bg:#161616;--calc-t:#F0F0F0;
+      --tag:#222;--tag-t:#888;
+      --sh:0 2px 16px rgba(0,0,0,.4);--sh2:0 8px 40px rgba(0,0,0,.5);
+    }
+    .mp{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);color:var(--ink1);min-height:100vh;transition:background .3s,color .3s;}
+
+    /* NAV */
+    .nav{position:fixed;top:0;left:0;right:0;z-index:200;background:var(--nav-bg);backdrop-filter:blur(20px);border-bottom:1px solid var(--border);transition:all .3s;}
+    .nav-in{max-width:1200px;margin:0 auto;padding:0 24px;display:flex;align-items:center;justify-content:space-between;height:62px;}
+    .logo{display:flex;align-items:center;gap:9px;text-decoration:none;}
+    .lmark{width:32px;height:32px;border-radius:9px;background:var(--accent);display:flex;align-items:center;justify-content:center;color:#fff;font-family:'Bricolage Grotesque',sans-serif;font-size:16px;font-weight:800;flex-shrink:0;}
+    .ltext{font-family:'Bricolage Grotesque',sans-serif;font-size:18px;font-weight:800;color:var(--ink1);}
+    .ltext em{font-style:normal;color:var(--accent);}
+    .nav-links{display:flex;gap:28px;}
+    .nav-links a{font-size:14px;font-weight:500;color:var(--ink2);cursor:pointer;transition:color .15s;}
+    .nav-links a:hover{color:var(--ink1);}
+    .nav-r{display:flex;align-items:center;gap:10px;}
+    .toggle{display:flex;background:var(--tag);border-radius:8px;padding:3px;}
+    .tbtn{background:none;border:none;cursor:pointer;padding:5px 8px;border-radius:6px;font-size:13px;transition:background .2s;}
+    .tbtn.on{background:var(--surface);box-shadow:var(--sh);}
+    .btn-ghost{background:none;border:1px solid var(--border2);border-radius:9px;padding:8px 18px;font-family:inherit;font-size:13.5px;font-weight:600;color:var(--ink1);cursor:pointer;transition:all .2s;}
+    .btn-ghost:hover{border-color:var(--accent);color:var(--accent);}
+    .btn-solid{background:var(--accent);border:none;border-radius:9px;padding:8px 18px;font-family:inherit;font-size:13.5px;font-weight:700;color:#fff;cursor:pointer;transition:all .2s;}
+    .btn-solid:hover{background:var(--accent2);transform:translateY(-1px);}
+
+    /* TICKER */
+    .ticker{background:var(--ticker-bg);overflow:hidden;padding:9px 0;}
+    .t-track{display:flex;gap:48px;animation:tick 30s linear infinite;width:max-content;}
+    .t-item{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:600;color:var(--ticker-c);white-space:nowrap;opacity:.85;letter-spacing:.3px;}
+    .t-dot{width:4px;height:4px;border-radius:50%;background:var(--ticker-c);opacity:.5;}
+    @keyframes tick{from{transform:translateX(0);}to{transform:translateX(-50%);}}
+
+    /* HERO */
+    .hero{max-width:1100px;margin:0 auto;padding:90px 24px 70px;display:flex;align-items:center;gap:60px;}
+    .hero-l{flex:1;}
+    .h-badge{display:inline-flex;align-items:center;gap:7px;background:var(--accent-pale);border:1px solid var(--accent-ring);border-radius:100px;padding:5px 14px;font-size:11.5px;font-weight:700;color:var(--accent-text);letter-spacing:.6px;text-transform:uppercase;margin-bottom:24px;}
+    .h-dot{width:6px;height:6px;border-radius:50%;background:var(--accent);animation:pulse 2s infinite;}
+    @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.3;}}
+    .hero-h{font-family:'Bricolage Grotesque',sans-serif;font-size:clamp(36px,5vw,64px);font-weight:800;line-height:1.05;letter-spacing:-2.5px;color:var(--ink1);margin-bottom:18px;}
+    .hero-h em{font-style:normal;color:var(--accent);}
+    .hero-sub{font-size:clamp(15px,1.8vw,17px);color:var(--ink2);line-height:1.7;max-width:460px;margin-bottom:32px;}
+    .hero-btns{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:48px;}
+    .hbtn-p{background:var(--accent);color:#fff;border:none;border-radius:12px;padding:14px 28px;font-family:inherit;font-size:15px;font-weight:700;cursor:pointer;transition:all .2s;display:flex;align-items:center;gap:8px;}
+    .hbtn-p:hover{background:var(--accent2);transform:translateY(-2px);box-shadow:0 8px 28px rgba(11,61,46,.3);}
+    .hbtn-s{background:var(--surface);color:var(--ink1);border:1px solid var(--border2);border-radius:12px;padding:14px 24px;font-family:inherit;font-size:15px;font-weight:600;cursor:pointer;transition:all .2s;}
+    .hbtn-s:hover{border-color:var(--accent);color:var(--accent);}
+    .h-stats{display:flex;gap:32px;align-items:center;}
+    .h-stat-n{font-family:'Bricolage Grotesque',sans-serif;font-size:26px;font-weight:800;color:var(--ink1);line-height:1;}
+    .h-stat-l{font-size:12px;color:var(--ink3);margin-top:3px;}
+    .h-div{width:1px;height:36px;background:var(--border);}
+
+    /* FLOATING CARDS */
+    .hero-r{flex:0 0 320px;position:relative;height:380px;}
+    .fc{position:absolute;background:var(--card);border:1px solid var(--border);border-radius:16px;padding:14px 16px;box-shadow:var(--sh2);display:flex;align-items:center;gap:12px;width:210px;animation:float 5s ease-in-out infinite;}
+    .fc:nth-child(2){animation-delay:-2s;}
+    .fc:nth-child(3){animation-delay:-4s;}
+    @keyframes float{0%,100%{transform:translateY(0);}50%{transform:translateY(-10px);}}
+    .fc-icon{width:40px;height:40px;border-radius:10px;background:var(--tag);display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden;}
+    .fc-icon img{width:26px;height:26px;}
+    .fc-name{font-weight:700;font-size:13px;color:var(--ink1);}
+    .fc-price{font-size:12px;color:var(--accent);font-weight:600;margin-top:2px;}
+    .fc-save{position:absolute;top:-8px;right:-8px;background:var(--accent);color:#fff;font-size:10px;font-weight:800;padding:3px 8px;border-radius:100px;white-space:nowrap;}
+
+    /* POOL GRID */
+    .sec{max-width:1200px;margin:0 auto;padding:72px 24px;}
+    .sec-lbl{font-size:11px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;color:var(--accent-text);margin-bottom:8px;}
+    .sec-title{font-family:'Bricolage Grotesque',sans-serif;font-size:clamp(26px,3.5vw,38px);font-weight:800;color:var(--ink1);letter-spacing:-1px;margin-bottom:8px;}
+    .sec-sub{font-size:15px;color:var(--ink2);margin-bottom:36px;}
+    .cats{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:32px;}
+    .cat{background:var(--tag);border:1px solid var(--border);border-radius:100px;padding:7px 18px;font-family:inherit;font-size:13px;font-weight:600;color:var(--tag-t);cursor:pointer;transition:all .18s;}
+    .cat:hover{border-color:var(--accent);color:var(--accent);}
+    .cat.active{background:var(--accent);border-color:var(--accent);color:#fff;}
+    .pool-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:18px;}
+
+    /* POOL CARD */
+    .pc{background:var(--card);border:1px solid var(--border);border-radius:18px;padding:22px;transition:all .22s;}
+    .pc:hover{box-shadow:var(--sh2);transform:translateY(-3px);border-color:var(--border2);}
+    .pc-top{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:16px;}
+    .pc-svc{display:flex;align-items:center;gap:11px;}
+    .pc-icon{width:44px;height:44px;border-radius:12px;background:var(--tag);display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0;}
+    .pc-icon img{width:28px;height:28px;}
+    .pc-fb{font-size:18px;font-weight:800;color:var(--ink3);}
+    .pc-name{font-weight:700;font-size:14.5px;color:var(--ink1);margin-bottom:2px;}
+    .pc-host{font-size:12px;color:var(--ink3);}
+    .bver{background:var(--accent-pale);color:var(--accent-text);border:1px solid var(--accent-ring);font-size:11px;font-weight:700;padding:3px 9px;border-radius:6px;}
+    .besc{background:#FEF3E2;color:#B45309;border:1px solid #F0D5A0;font-size:11px;font-weight:700;padding:3px 9px;border-radius:6px;}
+    .pc-price{font-family:'Bricolage Grotesque',sans-serif;font-size:28px;font-weight:800;color:var(--ink1);letter-spacing:-1px;margin-bottom:2px;}
+    .pc-price span{font-size:13px;font-weight:500;color:var(--ink3);letter-spacing:0;}
+    .pc-save{font-size:12px;color:var(--accent-text);font-weight:600;margin-bottom:14px;}
+    .pc-seats{display:flex;justify-content:space-between;font-size:12.5px;color:var(--ink3);margin-bottom:6px;}
+    .seats-last{color:#E67E22;font-weight:700;}
+    .pc-bar{height:5px;background:var(--border);border-radius:100px;margin-bottom:16px;overflow:hidden;}
+    .pc-fill{height:100%;border-radius:100px;transition:width .5s;}
+    .pc-foot{display:flex;align-items:center;justify-content:space-between;}
+    .pc-renew{font-size:12px;color:var(--ink3);margin-bottom:3px;}
+    .pc-mem{font-size:11.5px;color:var(--ink3);display:flex;align-items:center;gap:4px;}
+
+    /* HOW IT WORKS */
+    .hiw{background:var(--hiw-bg);padding:80px 24px;}
+    .hiw-in{max-width:1100px;margin:0 auto;}
+    .hiw-lbl{font-size:11px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;color:var(--hiw-m);margin-bottom:8px;}
+    .hiw-title{font-family:'Bricolage Grotesque',sans-serif;font-size:clamp(26px,3.5vw,38px);font-weight:800;color:var(--hiw-t);letter-spacing:-1px;margin-bottom:52px;}
+    .hiw-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:2px;}
+    .hiw-step{background:rgba(255,255,255,.05);padding:28px 24px;transition:background .2s;}
+    .hiw-step:first-child{border-radius:14px 0 0 14px;}
+    .hiw-step:last-child{border-radius:0 14px 14px 0;}
+    .hiw-step:hover{background:rgba(255,255,255,.09);}
+    .hiw-num{font-size:10px;font-weight:800;letter-spacing:1.5px;color:var(--hiw-m);margin-bottom:18px;text-transform:uppercase;}
+    .hiw-icon{width:42px;height:42px;border-radius:10px;background:rgba(255,255,255,.1);display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.85);margin-bottom:18px;}
+    .hiw-st{font-family:'Bricolage Grotesque',sans-serif;font-size:15px;font-weight:700;color:var(--hiw-t);margin-bottom:8px;}
+    .hiw-sd{font-size:13px;color:var(--hiw-m);line-height:1.65;}
+
+    /* SAVINGS CALC */
+    .calc-wrap{background:var(--calc-bg);padding:80px 24px;}
+    .calc-in{max-width:900px;margin:0 auto;}
+    .calc-lbl{font-size:11px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,255,255,.35);margin-bottom:8px;}
+    .calc-title{font-family:'Bricolage Grotesque',sans-serif;font-size:clamp(26px,3.5vw,38px);font-weight:800;color:var(--calc-t);letter-spacing:-1px;margin-bottom:8px;}
+    .calc-sub{font-size:15px;color:rgba(255,255,255,.45);margin-bottom:40px;}
+    .calc-body{display:grid;grid-template-columns:1fr 1fr;gap:32px;align-items:start;}
+    .cf label{display:block;font-size:11px;font-weight:700;color:rgba(255,255,255,.4);margin-bottom:8px;letter-spacing:.8px;text-transform:uppercase;}
+    .cf+.cf{margin-top:20px;}
+    .csel{width:100%;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:13px 16px;font-family:inherit;font-size:14px;font-weight:600;color:var(--calc-t);cursor:pointer;outline:none;appearance:none;}
+    .csel:focus{border-color:rgba(255,255,255,.3);}
+    .cslider-val{font-size:20px;font-weight:800;color:#fff;margin-bottom:10px;}
+    .cslider{width:100%;accent-color:#2ECC71;cursor:pointer;}
+    .cres{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:28px;}
+    .crow{display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid rgba(255,255,255,.07);font-size:14px;}
+    .crow:last-child{border-bottom:none;}
+    .crow-l{color:rgba(255,255,255,.45);}
+    .crow-v{font-weight:700;color:#fff;}
+    .crow-hi{color:#2ECC71;}
+    .crow-yr{font-size:24px;font-weight:800;color:#2ECC71;font-family:'Bricolage Grotesque',sans-serif;}
+
+    /* WHY US */
+    .why-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:20px;margin-top:40px;}
+    .why-card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:26px;transition:all .2s;}
+    .why-card:hover{transform:translateY(-3px);box-shadow:var(--sh2);}
+    .why-icon{width:44px;height:44px;border-radius:11px;background:var(--accent-pale);display:flex;align-items:center;justify-content:center;color:var(--accent);margin-bottom:16px;}
+    .why-title{font-weight:700;font-size:15px;color:var(--ink1);margin-bottom:7px;}
+    .why-desc{font-size:13.5px;color:var(--ink2);line-height:1.65;}
+
+    /* FAQ */
+    .faq-list{margin-top:36px;display:flex;flex-direction:column;gap:10px;}
+    .faq-item{background:var(--card);border:1px solid var(--border);border-radius:13px;overflow:hidden;}
+    .faq-item.open{border-color:var(--border2);}
+    .faq-q{display:flex;justify-content:space-between;align-items:center;padding:18px 22px;cursor:pointer;font-weight:600;font-size:14.5px;color:var(--ink1);gap:16px;transition:color .15s;}
+    .faq-q:hover{color:var(--accent);}
+    .faq-chev{flex-shrink:0;transition:transform .25s;color:var(--ink3);}
+    .faq-chev.open{transform:rotate(180deg);color:var(--accent);}
+    .faq-a{font-size:14px;color:var(--ink2);line-height:1.7;padding:0 22px 18px;}
+
+    /* CTA */
+    .cta-banner{background:var(--accent);padding:64px 24px;text-align:center;}
+    .cta-banner h2{font-family:'Bricolage Grotesque',sans-serif;font-size:clamp(26px,4vw,42px);font-weight:800;color:#fff;letter-spacing:-1.2px;margin-bottom:14px;}
+    .cta-banner p{font-size:16px;color:rgba(255,255,255,.75);margin-bottom:32px;}
+    .cta-btns{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;}
+    .cta-w{background:#fff;color:var(--accent);border:none;border-radius:12px;padding:14px 28px;font-family:inherit;font-size:15px;font-weight:700;cursor:pointer;transition:all .2s;}
+    .cta-w:hover{transform:translateY(-2px);box-shadow:0 8px 28px rgba(0,0,0,.2);}
+    .cta-o{background:transparent;color:#fff;border:2px solid rgba(255,255,255,.4);border-radius:12px;padding:14px 28px;font-family:inherit;font-size:15px;font-weight:600;cursor:pointer;transition:all .2s;}
+    .cta-o:hover{border-color:#fff;}
+
+    /* FOOTER */
+    .footer{background:#080808;padding:52px 24px 32px;}
+    .footer-in{max-width:1200px;margin:0 auto;}
+    .footer-top{display:flex;justify-content:space-between;gap:40px;flex-wrap:wrap;margin-bottom:40px;}
+    .footer-brand p{font-size:13.5px;color:#555;line-height:1.7;margin-top:14px;max-width:240px;}
+    .footer-col h4{font-size:11px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:#444;margin-bottom:14px;}
+    .footer-col a{display:block;font-size:13.5px;color:#666;margin-bottom:9px;cursor:pointer;transition:color .15s;}
+    .footer-col a:hover{color:#fff;}
+    .footer-bot{border-top:1px solid #161616;padding-top:24px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;}
+    .footer-copy{font-size:12.5px;color:#333;}
+    .pay-badges{display:flex;gap:8px;}
+    .pay-b{background:#111;border:1px solid #222;border-radius:6px;padding:4px 10px;font-size:11px;font-weight:700;color:#555;}
+
+    /* RESPONSIVE */
+    @media(max-width:900px){
+      .hero{flex-direction:column;text-align:center;padding:72px 24px 48px;}
+      .hero-sub{max-width:100%;}
+      .hero-btns{justify-content:center;}
+      .h-stats{justify-content:center;}
+      .hero-r{display:none;}
+      .hiw-grid{grid-template-columns:1fr 1fr;}
+      .calc-body{grid-template-columns:1fr;}
+      .nav-links{display:none;}
+      .footer-top{flex-direction:column;}
+    }
+    @media(max-width:600px){
+      .pool-grid{grid-template-columns:1fr;}
+      .hiw-grid{grid-template-columns:1fr;}
+      .hiw-step:first-child{border-radius:14px 14px 0 0;}
+      .hiw-step:last-child{border-radius:0 0 14px 14px;}
+      .h-stats{flex-wrap:wrap;gap:20px;}
+      .hero-h{letter-spacing:-1.5px;}
+    }
+  `}</style>;
+}
+
+// ── NavBar ────────────────────────────────────────────────────
 function NavBar({dark,setDark}){
   const [sc,setSc]=useState(false);
+  const navigate=useNavigate();
   useEffect(()=>{const fn=()=>setSc(window.scrollY>10);window.addEventListener("scroll",fn);return()=>window.removeEventListener("scroll",fn);},[]);
+  const go=(id)=>document.getElementById(id)?.scrollIntoView({behavior:"smooth"});
   return(
-    <nav className={`nav${sc?" scrolled":""}`}>
-      <div className="nav-inner">
-        <a href="#" className="logo">
-          <div className="logo-mark">S</div>
-          <span className="logo-text">SplitPay<span>NG</span></span>
+    <nav className="nav" style={{boxShadow:sc?"0 2px 20px rgba(0,0,0,.1)":"none"}}>
+      <div className="nav-in">
+        <a href="/" className="logo">
+          <img src="/favicon-32x32.png" alt="SplitPayNG" style={{width:32,height:32,borderRadius:9,flexShrink:0}} />
+          <span className="ltext">SplitPay<em>NG</em></span>
         </a>
         <div className="nav-links">
-          <a href="#">Marketplace</a>
-          <a href="#">How It Works</a>
-          <a href="#">Host a Pool</a>
+          <a onClick={()=>go("pools")}>Browse Pools</a>
+          <a onClick={()=>go("how")}>How It Works</a>
+          <a onClick={()=>go("savings")}>Savings</a>
+          <a onClick={()=>go("faq")}>FAQ</a>
         </div>
-        <div className="nav-right">
+        <div className="nav-r">
           <div className="toggle">
-            <button className={`toggle-btn${!dark?" on":""}`} onClick={()=>setDark(false)} title="Light mode">☀️</button>
-            <button className={`toggle-btn${dark?" on":""}`}  onClick={()=>setDark(true)}  title="Dark mode">🌙</button>
+            <button className={`tbtn${!dark?" on":""}`} onClick={()=>setDark(false)}>☀️</button>
+            <button className={`tbtn${dark?" on":""}`} onClick={()=>setDark(true)}>🌙</button>
           </div>
-          <button className="btn-ghost">Sign In</button>
-          <button className="btn-solid">Get Started</button>
+          <button className="btn-ghost" onClick={()=>navigate("/auth")}>Sign In</button>
+          <button className="btn-solid" onClick={()=>navigate("/auth")}>Get Started</button>
         </div>
       </div>
     </nav>
   );
 }
 
+// ── Ticker ────────────────────────────────────────────────────
 function Ticker(){
-  const all=[...TICKS,...TICKS];
+  const items=[...TICKERS,...TICKERS];
   return(
     <div className="ticker">
-      <div className="ticker-track">
-        {all.map((t,i)=><span key={i} className="tick-item"><span className="tick-dot"/>{t}</span>)}
+      <div className="t-track">
+        {items.map((t,i)=><div key={i} className="t-item"><span className="t-dot"/>{t}</div>)}
       </div>
     </div>
   );
 }
 
+// ── Hero ─────────────────────────────────────────────────────
 function Hero(){
-  return(
-    <section>
-      <div className="hero">
-        <div className="eyebrow"><div className="eyebrow-dot"/>847 active pools · Zero failed payouts this month</div>
-        <h1 className="hero-h">Premium subscriptions,<br/><em>split fairly.</em></h1>
-        <p className="hero-sub">Netflix, ChatGPT, Adobe CC — join a trusted pool and pay your share automatically every month. Protected by 48-hour escrow.</p>
-        <div className="hero-btns">
-          <button className="btn-primary">Browse Pools <span>→</span></button>
-          <button className="btn-secondary">Host a Pool</button>
-        </div>
-        <div className="stats">
-          {[{n:"₦2.4M+",l:"Saved this month"},{n:"847",l:"Active pools"},{n:"4,200+",l:"Members"},{n:"100%",l:"Escrow protected"}].map(s=>(
-            <div key={s.n} className="stat"><span className="stat-n">{s.n}</span><span className="stat-l">{s.l}</span></div>
-          ))}
-        </div>
-      </div>
-      <div className="trust">
-        <div className="trust-inner">
-          {[{i:"🔒",t:"48-Hour Escrow"},{i:"💳",t:"Powered by Paystack"},{i:"✓",t:"Verified hosts"},{i:"🔄",t:"Auto monthly billing"},{i:"🛡️",t:"24hr dispute resolution"}].map(x=>(
-            <div key={x.t} className="trust-item"><span>{x.i}</span><span>{x.t}</span></div>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-// ── Pool Card ─────────────────────────────────────────────────
-function Card({p, dark}){
-  const left = p.max - p.filled;
-  const pct  = Math.round(p.filled / p.max * 100);
-  const perSeat = p.total / p.max;
-  const sav  = Math.round(((perSeat - p.price) / perSeat) * 100);
-
-  const brand = BRAND_ICONS[p.icon];
-  const iconSrc  = dark ? brand?.dark  : brand?.light;
-  const iconBg   = dark ? p.bg.d : p.bg.l;
-
-  return(
-    <div className="card">
-      <div className="card-top">
-        <div className="card-svc">
-          {/* Real brand icon */}
-          <div className="svc-icon" style={{background: iconBg}}>
-            <img
-              src={iconSrc}
-              alt={p.svc}
-              onError={e => { e.target.style.display = 'none' }}
-            />
-          </div>
-          <div>
-            <div className="svc-name">{p.svc}</div>
-            <div className="svc-host">by {p.host}</div>
-          </div>
-        </div>
-        <span className={`badge ${p.ver?"badge-v":"badge-e"}`}>{p.ver?"✓ Verified":"⏱ Escrow"}</span>
-      </div>
-      <div className="card-div"/>
-      <div className="price-row">
-        <div><span className="price">₦{p.price.toLocaleString()}</span><span className="price-unit">/month</span></div>
-        {sav>0 && <span className="savings">Save {sav}%</span>}
-      </div>
-      <div className="seats-row">
-        <span className="seats-l">{p.filled} of {p.max} seats filled</span>
-        {left===1
-          ? <span className="seats-w">Last seat</span>
-          : <span className="seats-l" style={{color:"var(--ink-3)"}}>{left} open</span>
-        }
-      </div>
-      <div className="bar"><div className={`bar-fill${pct>=75?" w":""}`} style={{width:`${pct}%`}}/></div>
-      <div className="card-bot">
-        <span className="renew">Renews in <strong>{p.renew}d</strong></span>
-        <JoinPoolButton pool={p} />
-      </div>
-    </div>
-  );
-}
-
-function Market({dark}){
-  const [cat,  setCat]  = useState("All");
-  const [q,    setQ]    = useState("");
-  const [sort, setSort] = useState("popular");
-
-  const list = POOLS
-    .filter(p => cat==="All" || p.cat===cat)
-    .filter(p => p.svc.toLowerCase().includes(q.toLowerCase()) || p.cat.toLowerCase().includes(q.toLowerCase()))
-    .sort((a,b) => {
-      if(sort==="price-asc")  return a.price - b.price;
-      if(sort==="price-desc") return b.price - a.price;
-      if(sort==="seats")      return (a.max-a.filled) - (b.max-b.filled);
-      return b.filled - a.filled;
-    });
-
-  return(
-    <section className="market">
-      <div style={{marginBottom:28}}>
-        <div className="sec-label">Marketplace</div>
-        <h2 className="sec-title">Browse Live Pools</h2>
-      </div>
-      <div className="controls">
-        <div className="search-wrap">
-          <span className="search-icon">⌕</span>
-          <input className="search-input" type="text" placeholder="Search by service or category…" value={q} onChange={e=>setQ(e.target.value)}/>
-        </div>
-        <div style={{display:"flex",alignItems:"center",gap:10}}>
-          <span style={{fontSize:12.5,color:"var(--ink-2)"}}>{list.length} pool{list.length!==1?"s":""}</span>
-          <select className="sort" value={sort} onChange={e=>setSort(e.target.value)}>
-            <option value="popular">Most popular</option>
-            <option value="price-asc">Price: Low to high</option>
-            <option value="price-desc">Price: High to low</option>
-            <option value="seats">Most seats available</option>
-          </select>
-        </div>
-      </div>
-      <div className="cats">
-        {CATS.map(c=>(
-          <button key={c} className={`cat${cat===c?" active":""}`} onClick={()=>setCat(c)}>
-            {c}{c!=="All"&&<span className="cat-n">{POOLS.filter(p=>p.cat===c).length}</span>}
-          </button>
-        ))}
-      </div>
-      <div className="grid">
-        {list.length>0
-          ? list.map(p=><Card key={p.id} p={p} dark={dark}/>)
-          : (
-            <div className="empty">
-              <div style={{fontSize:30,marginBottom:12,color:"var(--ink-3)"}}>○</div>
-              <div className="empty-t">No pools found</div>
-              <p className="empty-s">Try adjusting your search or filter.</p>
-            </div>
-          )
-        }
-      </div>
-      {list.length>0 && (
-        <div style={{textAlign:"center",marginTop:48}}>
-          <button className="btn-ghost" style={{padding:"11px 36px",fontSize:13.5}}>Load more pools</button>
-        </div>
-      )}
-    </section>
-  );
-}
-
-function How(){
-  const steps=[
-    {n:"01",i:"🔍",t:"Find a pool",   d:"Browse the marketplace. Filter by service, price, and available seats."},
-    {n:"02",i:"💳",t:"Pay your share",d:"Enter your card once. Tokenized securely for automatic monthly billing."},
-    {n:"03",i:"🔐",t:"Get credentials",d:"Receive login details instantly. 48 hours to confirm everything works."},
-    {n:"04",i:"✅",t:"Access confirmed",d:"Funds released to host. Auto-billed on the same day every month."},
+  const navigate=useNavigate();
+  const go=(id)=>document.getElementById(id)?.scrollIntoView({behavior:"smooth"});
+  const cards=[
+    {svc:"Spotify Family",   domain:"spotify.com",    price:"₦2,000/mo",save:"Save 67%",style:{top:20,left:0}},
+    {svc:"Netflix Premium",  domain:"netflix.com",     price:"₦6,400/mo",save:"Save 75%",style:{top:150,right:0}},
+    {svc:"ChatGPT Plus",     domain:"openai.com",      price:"₦7,500/mo",save:"Save 75%",style:{bottom:30,left:30}},
   ];
   return(
-    <section className="hiw">
+    <section style={{background:"var(--bg)"}}>
+      <div className="hero">
+        <div className="hero-l">
+          <div className="h-badge"><div className="h-dot"/>Nigeria's #1 Subscription Sharing Platform</div>
+          <h1 className="hero-h">Cut subscription<br/>costs by up to <em>75%</em></h1>
+          <p className="hero-sub">Join shared pools for Netflix, Spotify, ChatGPT, Canva and more. Pay your fair share automatically every month — protected by 48-hour escrow.</p>
+          <div className="hero-btns">
+            <button className="hbtn-p" onClick={()=>go("pools")}>Browse Pools →</button>
+            <button className="hbtn-s" onClick={()=>{sessionStorage.setItem('redirectAfterLogin','/create-pool');navigate("/auth")}}>Host a Pool</button>
+          </div>
+          <div className="h-stats">
+            <div><div className="h-stat-n">847</div><div className="h-stat-l">Active pools</div></div>
+            <div className="h-div"/>
+            <div><div className="h-stat-n">4,200+</div><div className="h-stat-l">Members</div></div>
+            <div className="h-div"/>
+            <div><div className="h-stat-n">₦2.4M+</div><div className="h-stat-l">Saved this month</div></div>
+          </div>
+        </div>
+        <div className="hero-r">
+          {cards.map((c,i)=>(
+            <div key={i} className="fc" style={c.style}>
+              <div className="fc-save">{c.save}</div>
+              <div className="fc-icon"><img src={favicon(c.domain)} alt={c.svc} width={26} height={26}/></div>
+              <div><div className="fc-name">{c.svc}</div><div className="fc-price">{c.price}</div></div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ── Pool Grid ─────────────────────────────────────────────────
+function PoolGrid(){
+  const [cat,setCat]=useState("All");
+  const [livePools,setLivePools]=useState([]);
+  const [poolsLoading,setPoolsLoading]=useState(true);
+  const [fetchFailed,setFetchFailed]=useState(false);
+
+  useEffect(()=>{
+    let cancelled=false
+    const load = async () => {
+      setPoolsLoading(true)
+      setFetchFailed(false)
+      try {
+        const API = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000'
+        const res = await fetch(`${API}/api/pools/public`)
+        const json = await res.json()
+        if(cancelled) return
+        if (json.pools) {
+          setLivePools(json.pools.map(p => ({
+            id: p.id,
+            cat: p.category || 'Other',
+            svc: p.service_name,
+            domain: getDomain(p.service_name),
+            host: 'Verified Host',
+            price: p.split_price,
+            retail: p.split_price * p.max_members,
+            max: p.max_members,
+            filled: p.current_members || 0,
+            renew: (() => {
+              const today = new Date()
+              const day = p.renewal_day || 1
+              const nextRenewal = new Date(today.getFullYear(), today.getMonth(), day)
+              if (nextRenewal <= today) nextRenewal.setMonth(nextRenewal.getMonth() + 1)
+              return Math.max(1, Math.round((nextRenewal - today) / (1000*60*60*24)))
+            })(),
+            ver: true,
+          })))
+        }
+      } catch(e){
+        if(!cancelled){ console.log('Pool fetch failed:', e.message); setFetchFailed(true) }
+      } finally {
+        if(!cancelled) setPoolsLoading(false)
+      }
+    }
+    load()
+    return ()=>{ cancelled=true }
+  },[])
+
+  // Never show demo data in the live pool grid — only real pools
+  const filtered = cat==="All" ? livePools : livePools.filter(p=>p.cat===cat);
+
+  return(
+    <section id="pools" style={{background:"var(--bg)"}}>
+      <div className="sec">
+        <div className="sec-lbl">Marketplace</div>
+        <div className="sec-title">Available Subscriptions</div>
+        <div className="sec-sub">Join a pool and start saving today. New pools added weekly.</div>
+        <div className="cats">
+          {CATEGORIES.map(c=>(
+            <button key={c} className={`cat${cat===c?" active":""}`} onClick={()=>setCat(c)}>{c}</button>
+          ))}
+        </div>
+        {poolsLoading ? (
+          <div style={{display:'flex',flexDirection:'column',alignItems:'center',padding:'60px 0',gap:14}}>
+            <div style={{width:36,height:36,border:'3px solid #E2DAD0',borderTopColor:'#0B3D2E',borderRadius:'50%',animation:'spin 0.7s linear infinite'}}/>
+            <div style={{color:'#999',fontSize:14}}>Loading pools…</div>
+            <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+          </div>
+        ) : filtered.length === 0 ? (
+          <div style={{textAlign:'center',padding:'60px 0',color:'#999',fontSize:15}}>
+            {fetchFailed ? '⚠ Could not load pools — check your connection and refresh.' : 'No pools available yet. Be the first to host one!'}
+          </div>
+        ) : (
+          <div className="pool-grid">
+            {filtered.map(p=><PoolCard key={p.id} pool={p}/>)}
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function PoolCard({pool:p}){
+  const [fail,setFail]=useState(false);
+  const left=p.max-p.filled;
+  const pct=Math.round(p.filled/p.max*100);
+  const save=Math.round((p.retail-p.price)/p.retail*100);
+  const barColor=left===1?"#E67E22":"var(--accent)";
+  return(
+    <div className="pc">
+      <div className="pc-top">
+        <div className="pc-svc">
+          <div className="pc-icon">
+            {!fail
+              ?<img src={favicon(p.domain)} alt={p.svc} width={28} height={28} onError={()=>setFail(true)}/>
+              :<span className="pc-fb">{p.svc[0]}</span>}
+          </div>
+          <div>
+            <div className="pc-name">{p.svc}</div>
+            <div className="pc-host">by {p.host}</div>
+          </div>
+        </div>
+        {p.ver?<div className="bver">✓ Verified</div>:<div className="besc">⏱ Escrow</div>}
+      </div>
+      <div className="pc-price">₦{p.price.toLocaleString()}<span>/month</span></div>
+      <div className="pc-save">You save {save}% vs buying alone</div>
+      <div className="pc-seats">
+        <span>{p.filled} of {p.max} seats filled</span>
+        {left===1?<span className="seats-last">Last seat!</span>:<span>{left} open</span>}
+      </div>
+      <div className="pc-bar"><div className="pc-fill" style={{width:`${pct}%`,background:barColor}}/></div>
+      <div className="pc-foot">
+        <div>
+          <div className="pc-renew">Renews in {p.renew}d</div>
+          <div className="pc-mem">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
+              <path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+            </svg>
+            {p.filled} members
+          </div>
+        </div>
+        <JoinPoolButton pool={p}/>
+      </div>
+    </div>
+  );
+}
+
+// ── How It Works ──────────────────────────────────────────────
+function HowItWorks(){
+  const steps=[
+    {n:"01",title:"Find a pool",desc:"Browse by category. Filter by price, seats, and service. Every pool shows verified host status.",
+     icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>},
+    {n:"02",title:"Pay your share",desc:"Enter your card once via Paystack. Saved securely for automatic monthly billing — no action needed.",
+     icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="20" height="14" x="2" y="5" rx="2"/><path d="M2 10h20"/></svg>},
+    {n:"03",title:"Get credentials",desc:"Receive login details instantly. You have 48 hours to confirm credentials work before the host is paid.",
+     icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="11" x="3" y="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>},
+    {n:"04",title:"Access confirmed",desc:"Confirm it works, host gets paid. Auto-billed same day every month. Cancel anytime from your dashboard.",
+     icon:<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>},
+  ];
+  return(
+    <section className="hiw" id="how">
       <div className="hiw-in">
-        <div className="hiw-lbl">How it works</div>
-        <h2 className="hiw-ttl">From browsing to access<br/>in under 3 minutes.</h2>
+        <div className="hiw-lbl">How It Works</div>
+        <div className="hiw-title">From browsing to access<br/>in under 3 minutes.</div>
         <div className="hiw-grid">
           {steps.map(s=>(
             <div key={s.n} className="hiw-step">
               <div className="hiw-num">STEP {s.n}</div>
-              <span className="hiw-icon">{s.i}</span>
-              <div className="hiw-st">{s.t}</div>
-              <div className="hiw-sd">{s.d}</div>
+              <div className="hiw-icon">{s.icon}</div>
+              <div className="hiw-st">{s.title}</div>
+              <div className="hiw-sd">{s.desc}</div>
             </div>
           ))}
         </div>
@@ -448,48 +564,209 @@ function How(){
   );
 }
 
-function CTA(){
+// ── Savings Calculator ────────────────────────────────────────
+function SavingsCalc(){
+  const svcs=POOL_DATA.slice(0,8);
+  const [sel,setSel]=useState(0);
+  const [co,setCo]=useState(3);
+  const [open,setOpen]=useState(false);
+  const p=svcs[sel];
+  const totalMembers = co + 1; // co-subscribers + you
+  const yourPrice = Math.round(p.retail / totalMembers);
+  const saving = p.retail - yourPrice;
+  const yearSave = saving * 12;
+  const savePct = Math.round(saving / p.retail * 100);
   return(
-    <section className="cta">
-      <div className="cta-card">
-        <div>
-          <h2 className="cta-t">Own a subscription?<br/>Make it pay for itself.</h2>
-          <p className="cta-s">Create a pool in 60 seconds. Invite friends privately or open it to the public. Get paid every billing cycle.</p>
+    <section className="calc-wrap" id="savings">
+      <div className="calc-in">
+        <div className="calc-lbl">Savings Calculator</div>
+        <div className="calc-title">See how much you could save</div>
+        <div className="calc-sub">Save up to 75% on your yearly subscription costs</div>
+        <div className="calc-body">
+          <div>
+            <div className="cf">
+              <label>Select subscription</label>
+              {/* Custom dropdown — avoids invisible native options on dark bg */}
+              <div style={{position:"relative"}}>
+                <div
+                  onClick={()=>setOpen(o=>!o)}
+                  style={{
+                    width:"100%",background:"rgba(255,255,255,.07)",border:"1px solid rgba(255,255,255,.18)",
+                    borderRadius:10,padding:"13px 16px",fontSize:14,fontWeight:600,color:"#fff",
+                    cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center",
+                    userSelect:"none",
+                  }}
+                >
+                  <span>{p.svc}</span>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{transition:"transform .2s",transform:open?"rotate(180deg)":"none"}}>
+                    <polyline points="6 9 12 15 18 9"/>
+                  </svg>
+                </div>
+                {open&&(
+                  <div style={{
+                    position:"absolute",top:"calc(100% + 6px)",left:0,right:0,
+                    background:"#1E1E1E",border:"1px solid rgba(255,255,255,.15)",
+                    borderRadius:10,overflow:"hidden",zIndex:50,boxShadow:"0 12px 40px rgba(0,0,0,.6)",
+                  }}>
+                    {svcs.map((s,i)=>(
+                      <div
+                        key={i}
+                        onClick={()=>{setSel(i);setOpen(false);}}
+                        style={{
+                          padding:"12px 16px",fontSize:14,fontWeight:600,cursor:"pointer",
+                          color:sel===i?"#2ECC71":"#E0E0E0",
+                          background:sel===i?"rgba(46,204,113,.08)":"transparent",
+                          transition:"background .15s",
+                          borderBottom:"1px solid rgba(255,255,255,.06)",
+                        }}
+                        onMouseEnter={e=>{ if(sel!==i) e.currentTarget.style.background="rgba(255,255,255,.05)"; }}
+                        onMouseLeave={e=>{ if(sel!==i) e.currentTarget.style.background="transparent"; }}
+                      >
+                        {s.svc}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="cf" style={{marginTop:24}}>
+              <label>Co-subscribers</label>
+              <div className="cslider-val">{co} co-subscriber{co!==1?"s":""}</div>
+              <input type="range" className="cslider" min={1} max={9} value={co} onChange={e=>setCo(Number(e.target.value))}/>
+            </div>
+          </div>
+          <div className="cres">
+            <div className="crow"><span className="crow-l">Standard price (solo)</span><span className="crow-v">₦{p.retail.toLocaleString()}/mo</span></div>
+            <div className="crow"><span className="crow-l">Your price ({totalMembers} members)</span><span className="crow-v crow-hi">₦{yourPrice.toLocaleString()}/mo</span></div>
+            <div className="crow"><span className="crow-l">You save per month</span><span className="crow-v crow-hi">₦{saving.toLocaleString()} ({savePct}%)</span></div>
+            <div className="crow" style={{paddingTop:16}}>
+              <span className="crow-l" style={{fontSize:12,fontWeight:700,letterSpacing:.8,textTransform:"uppercase"}}>Yearly saving</span>
+              <span className="crow-yr">₦{yearSave.toLocaleString()}</span>
+            </div>
+          </div>
         </div>
-        <button className="btn-primary" style={{flexShrink:0}}>Host your first pool →</button>
       </div>
     </section>
   );
 }
 
-function Footer(){
+// ── Why Us ────────────────────────────────────────────────────
+function WhyUs(){
+  const cards=[
+    {title:"48-Hour Escrow",desc:"Payment held for 48 hours while you verify access. If credentials don't work, you get a full automatic refund.",
+     icon:<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="11" x="3" y="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>},
+    {title:"Verified Hosts",desc:"Every host is identity-verified before listing a pool. Unverified pools are clearly labelled and escrow-protected.",
+     icon:<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>},
+    {title:"Auto Monthly Billing",desc:"Card saved securely by Paystack. Billed same day every month — no reminders, no manual payments, ever.",
+     icon:<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>},
+    {title:"24hr Dispute Resolution",desc:"Raise a dispute from your dashboard. Our team reviews and resolves within 24 hours — refunding or releasing funds.",
+     icon:<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>},
+  ];
   return(
-    <footer className="footer">
-      <div className="footer-in">
-        <span className="flogo">SplitPay<span>NG</span></span>
-        <span className="fcopy">© 2025 SplitPayNG · Secured by Paystack · Built in Lagos</span>
-        <div className="flinks"><a href="#">Privacy</a><a href="#">Terms</a><a href="#">Contact</a></div>
+    <section style={{background:"var(--bg)"}}>
+      <div className="sec">
+        <div className="sec-lbl">Why SplitPayNG</div>
+        <div className="sec-title">Built for trust, not just savings</div>
+        <div className="sec-sub">Every feature is designed to protect both members and hosts.</div>
+        <div className="why-grid">
+          {cards.map(c=>(
+            <div key={c.title} className="why-card">
+              <div className="why-icon">{c.icon}</div>
+              <div className="why-title">{c.title}</div>
+              <div className="why-desc">{c.desc}</div>
+            </div>
+          ))}
+        </div>
       </div>
-    </footer>
+    </section>
   );
 }
 
-export default function App(){
-  const [dark,setDark]=useState(false);
-  useEffect(()=>{ const s=localStorage.getItem("spng-theme"); if(s==="dark") setDark(true); },[]);
-  useEffect(()=>{ localStorage.setItem("spng-theme", dark?"dark":"light"); },[dark]);
+// ── FAQ ───────────────────────────────────────────────────────
+function FaqSection(){
+  const [open,setOpen]=useState(null);
   return(
-    <div className={`app ${dark?"dark":"light"}`}>
-      <Styles/>
-      <NavBar dark={dark} setDark={setDark}/>
-      <main>
-        <div style={{marginTop:62}}><Ticker/></div>
-        <Hero/>
-        <Market dark={dark}/>
-        <How/>
-        <CTA/>
-      </main>
-      <Footer/>
+    <section style={{background:"var(--bg)"}} id="faq">
+      <div className="sec" style={{paddingTop:0}}>
+        <div className="sec-lbl">FAQ</div>
+        <div className="sec-title">Frequently asked questions</div>
+        <div className="faq-list">
+          {FAQS.map((f,i)=>(
+            <div key={i} className={`faq-item${open===i?" open":""}`}>
+              <div className="faq-q" onClick={()=>setOpen(open===i?null:i)}>
+                {f.q}
+                <svg className={`faq-chev${open===i?" open":""}`} width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="6 9 12 15 18 9"/>
+                </svg>
+              </div>
+              {open===i&&<div className="faq-a">{f.a}</div>}
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ── CTA Banner ────────────────────────────────────────────────
+function CTABanner(){
+  const navigate=useNavigate();
+  const go=(id)=>document.getElementById(id)?.scrollIntoView({behavior:"smooth"});
+  return(
+    <div className="cta-banner">
+      <h2>Start saving on subscriptions today</h2>
+      <p>Join thousands of Nigerians already splitting subscriptions on SplitPayNG</p>
+      <div className="cta-btns">
+        <button className="cta-w" onClick={()=>go("pools")}>Browse Pools</button>
+        <button className="cta-o" onClick={()=>{sessionStorage.setItem('redirectAfterLogin','/create-pool');navigate("/auth")}}>Host a Pool</button>
+      </div>
     </div>
+  );
+}
+
+// ── Footer ────────────────────────────────────────────────────
+function Footer(){
+  const navigate=useNavigate();
+  const go=(id)=>document.getElementById(id)?.scrollIntoView({behavior:"smooth"});
+  return(
+    <footer className="footer">
+      <div className="footer-in">
+        <div className="footer-top">
+          <div className="footer-brand">
+            <div style={{display:"flex",alignItems:"center",gap:9}}>
+              <img src="/favicon-32x32.png" alt="SplitPayNG" style={{width:32,height:32,borderRadius:9,flexShrink:0}} />
+              <span style={{fontFamily:"'Bricolage Grotesque',sans-serif",fontSize:17,fontWeight:800,color:"#fff"}}>SplitPay<span style={{color:"#2ECC71"}}>NG</span></span>
+            </div>
+            <p>Nigeria's trusted platform for sharing premium subscriptions. Save more, together.</p>
+          </div>
+          <div className="footer-col">
+            <h4>Platform</h4>
+            <a onClick={()=>go("pools")}>Browse Pools</a>
+            <a onClick={()=>{sessionStorage.setItem('redirectAfterLogin','/create-pool');navigate("/auth")}}>Host a Pool</a>
+            <a onClick={()=>navigate("/auth")}>Dashboard</a>
+          </div>
+          <div className="footer-col">
+            <h4>Support</h4>
+            <a onClick={()=>go("faq")}>FAQ</a>
+            <a href="mailto:hello@splitpayng.com">Contact Us</a>
+          </div>
+          <div className="footer-col">
+            <h4>Legal</h4>
+            <a>Privacy Policy</a>
+            <a>Terms of Service</a>
+            <a>Refund Policy</a>
+          </div>
+        </div>
+        <div className="footer-bot">
+          <div className="footer-copy">© 2025 SplitPayNG — All rights reserved.</div>
+          <div className="pay-badges">
+            <span className="pay-b">Paystack</span>
+            <span className="pay-b">Visa</span>
+            <span className="pay-b">Mastercard</span>
+            <span className="pay-b">USSD</span>
+          </div>
+        </div>
+      </div>
+    </footer>
   );
 }

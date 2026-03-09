@@ -4,7 +4,7 @@
 // Matches the existing SplitPayNG design language.
 // ============================================================
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 
@@ -116,8 +116,35 @@ export default function Auth() {
   const [error,      setError]      = useState('')
   const [success,    setSuccess]    = useState('')
   const [focusedEl,  setFocusedEl]  = useState(null)
+  const [showPass,   setShowPass]   = useState(false)
 
   const clearMessages = () => { setError(''); setSuccess('') }
+
+  // ── Listen for auth state and redirect ───────────────────
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_IN' && session) {
+        // Check both redirect keys (JoinPoolButton uses joinAfterAuth)
+        let redirectTo = sessionStorage.getItem('redirectAfterLogin')
+        sessionStorage.removeItem('redirectAfterLogin')
+
+        if (!redirectTo) {
+          const joinData = sessionStorage.getItem('joinAfterAuth')
+          if (joinData) {
+            try {
+              const { poolId } = JSON.parse(joinData)
+              redirectTo = `/join/${poolId}`
+            } catch {}
+            sessionStorage.removeItem('joinAfterAuth')
+          }
+        }
+
+        redirectTo = redirectTo || '/dashboard'
+        navigate(redirectTo)
+      }
+    })
+    return () => subscription.unsubscribe()
+  }, [navigate])
 
   // ── Sign In ───────────────────────────────────────────────
   const handleSignIn = async (e) => {
@@ -127,10 +154,9 @@ export default function Auth() {
     const { error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) {
       setError(error.message)
-    } else {
-      navigate('/dashboard')
+      setLoading(false)
     }
-    setLoading(false)
+    // If no error, the onAuthStateChange above handles the redirect
   }
 
   // ── Sign Up ───────────────────────────────────────────────
@@ -212,7 +238,7 @@ export default function Auth() {
 
           {/* Logo */}
           <div style={S.logo}>
-            <div style={S.logoMark}>S</div>
+            <img src="/favicon-32x32.png" alt="SplitPayNG" style={{ width: 32, height: 32, borderRadius: 9, flexShrink: 0 }} />
             <span style={S.logoText}>
               SplitPay<span style={{ color: '#0B3D2E' }}>NG</span>
             </span>
@@ -284,17 +310,45 @@ export default function Auth() {
 
             <div>
               <label style={S.label}>Password</label>
-              <input
-                style={inputStyle('pwd')}
-                type="password"
-                placeholder="Minimum 8 characters"
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                onFocus={() => setFocusedEl('pwd')}
-                onBlur={() => setFocusedEl(null)}
-                minLength={8}
-                required
-              />
+              <div style={{ position: 'relative' }}>
+                <input
+                  style={{ ...inputStyle('pwd'), paddingRight: 44 }}
+                  type={showPass ? 'text' : 'password'}
+                  placeholder="Minimum 8 characters"
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  onFocus={() => setFocusedEl('pwd')}
+                  onBlur={() => setFocusedEl(null)}
+                  minLength={8}
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPass(p => !p)}
+                  style={{
+                    position: 'absolute', right: 14, top: '50%',
+                    transform: 'translateY(-50%)',
+                    background: 'none', border: 'none', cursor: 'pointer',
+                    padding: 0, color: '#AAA', lineHeight: 1,
+                  }}
+                  tabIndex={-1}
+                  title={showPass ? 'Hide password' : 'Show password'}
+                >
+                  {showPass
+                    ? /* eye-off */
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
+                        <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
+                        <line x1="1" y1="1" x2="23" y2="23"/>
+                      </svg>
+                    : /* eye */
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                        <circle cx="12" cy="12" r="3"/>
+                      </svg>
+                  }
+                </button>
+              </div>
             </div>
 
             <button

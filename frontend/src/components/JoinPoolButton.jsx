@@ -21,6 +21,7 @@ export default function JoinPoolButton({ pool, style = {} }) {
   const [isLocked, runWithLock]      = useActionLock()
 
   const isFull    = pool.current_members >= pool.max_members
+  const priceVal  = pool.split_price || pool.price || 0  // handles both real DB and mock data
   const isDisabled = isLocked || isFull
 
   const handleJoin = () => runWithLock(async () => {
@@ -36,15 +37,8 @@ export default function JoinPoolButton({ pool, style = {} }) {
       return
     }
 
-    try {
-      // joinPool returns the Paystack checkout URL
-      const authUrl = await joinPool(pool.id)
-      if (authUrl) {
-        window.location.href = authUrl
-      }
-    } catch (err) {
-      setLocalError(err.message || 'Could not start payment. Please try again.')
-    }
+    // Navigate to the join page for this pool
+    navigate(`/join/${pool.id}`)
   })
 
   const displayError = localError || error
@@ -79,7 +73,7 @@ export default function JoinPoolButton({ pool, style = {} }) {
           ? 'Pool Full'
           : isLocked
             ? 'Processing…'
-            : `Join — ₦${Number(pool.split_price).toLocaleString()}/mo`}
+            : `Join — ₦${Number(priceVal).toLocaleString()}/mo`}
       </button>
 
       {displayError && (

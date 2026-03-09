@@ -125,6 +125,7 @@ export default function CreatePool() {
     category:            '',
     description:         '',
     is_public:           true,
+    pool_password:       '',
     total_cost:          '',
     split_price:         '',
     max_members:         '',
@@ -156,6 +157,8 @@ export default function CreatePool() {
     if (s === 1) {
       if (!form.service_name.trim()) errs.service_name = 'Service name is required.'
       if (!form.category)            errs.category     = 'Please select a category.'
+      if (!form.is_public && !form.pool_password.trim())
+        errs.pool_password = 'A join password is required for private pools.'
     }
     if (s === 2) {
       if (!form.total_cost || Number(form.total_cost) <= 0)
@@ -209,6 +212,7 @@ export default function CreatePool() {
         renewal_day:         Number(form.renewal_day),
         service_login_email: form.service_login_email.trim(),
         service_password:    form.service_password.trim(),
+        pool_password:       !form.is_public ? form.pool_password.trim() : undefined,
       })
 
       // Success — go to dashboard

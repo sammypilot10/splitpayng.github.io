@@ -13,7 +13,7 @@ const paystackClient = axios.create({
     Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}`,
     'Content-Type': 'application/json',
   },
-  timeout: 15000, // 15s timeout
+  timeout: 30000, // 30s timeout
 });
 
 // ── Helper: convert Naira → Kobo ─────────────────────────────

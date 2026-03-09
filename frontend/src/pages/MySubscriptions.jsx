@@ -4,7 +4,7 @@
 // billing history, and the 48-hour escrow confirm/dispute card.
 // ============================================================
 
-import { useState } from 'react'
+import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useMemberDashboard } from '../hooks/useMemberDashboard'
@@ -22,23 +22,34 @@ const STATUS = {
 
 // ── Service icon from Simple Icons CDN ───────────────────────
 const SERVICE_SLUGS = {
-  'netflix':     { slug: 'netflix',         color: 'E50914' },
-  'spotify':     { slug: 'spotify',         color: '1DB954' },
-  'chatgpt':     { slug: 'openai',          color: '10A37F' },
-  'claude':      { slug: 'anthropic',       color: 'D97757' },
-  'youtube':     { slug: 'youtube',         color: 'FF0000' },
-  'canva':       { slug: 'canva',           color: '00C4CC' },
-  'adobe':       { slug: 'adobe',           color: 'FF0000' },
-  'microsoft':   { slug: 'microsoftoffice', color: 'D83B01' },
-  'spotify':     { slug: 'spotify',         color: '1DB954' },
-  'apple music': { slug: 'applemusic',      color: 'FA243C' },
-  'playstation': { slug: 'playstation',     color: '003DA5' },
-  'xbox':        { slug: 'xbox',            color: '107C10' },
-  'google':      { slug: 'google',          color: '4285F4' },
-  'amazon':      { slug: 'amazonprime',     color: '00A8E8' },
-  'showmax':     { slug: 'showmax',         color: 'E82929' },
-  'cursor':      { slug: 'cursor',          color: '000000' },
-  'midjourney':  { slug: 'midjourney',      color: '000000' },
+  'netflix':       { slug: 'netflix',         color: 'E50914' },
+  'spotify':       { slug: 'spotify',         color: '1DB954' },
+  'chatgpt':       { slug: 'openai',          color: '10A37F' },
+  'openai':        { slug: 'openai',          color: '10A37F' },
+  'claude':        { slug: 'anthropic',       color: 'D97757' },
+  'anthropic':     { slug: 'anthropic',       color: 'D97757' },
+  'youtube':       { slug: 'youtube',         color: 'FF0000' },
+  'canva':         { slug: 'canva',           color: '00C4CC' },
+  'adobe':         { slug: 'adobe',           color: 'FF0000' },
+  'microsoft':     { slug: 'microsoftoffice', color: 'D83B01' },
+  'apple music':   { slug: 'applemusic',      color: 'FA243C' },
+  'apple':         { slug: 'apple',           color: '000000' },
+  'playstation':   { slug: 'playstation',     color: '003DA5' },
+  'xbox':          { slug: 'xbox',            color: '107C10' },
+  'google':        { slug: 'google',          color: '4285F4' },
+  'amazon':        { slug: 'amazonprime',     color: '00A8E8' },
+  'prime':         { slug: 'amazonprime',     color: '00A8E8' },
+  'showmax':       { slug: 'showmax',         color: 'E82929' },
+  'cursor':        { slug: 'cursor',          color: '000000' },
+  'midjourney':    { slug: 'midjourney',      color: '000000' },
+  'notion':        { slug: 'notion',          color: '000000' },
+  'figma':         { slug: 'figma',           color: 'F24E1E' },
+  'github':        { slug: 'github',          color: '181717' },
+  'dropbox':       { slug: 'dropbox',         color: '0061FF' },
+  'duolingo':      { slug: 'duolingo',        color: '58CC02' },
+  'disney':        { slug: 'disneyplus',      color: '113CCF' },
+  'hbo':           { slug: 'hbomax',          color: '5822B4' },
+  'ps plus':       { slug: 'playstation',     color: '003DA5' },
 }
 
 function ServiceIcon({ serviceName }) {
@@ -72,11 +83,25 @@ function ServiceIcon({ serviceName }) {
 function SubscriptionCard({ membership }) {
   const pool   = membership.pools
   const status = STATUS[membership.payment_status] || STATUS.pending
+  const [showCreds, setShowCreds] = React.useState(false)
+  const [copied, setCopied] = React.useState(false)
   const daysUntilBilling = membership.next_billing_date
     ? Math.max(0, Math.round(
         (new Date(membership.next_billing_date) - Date.now()) / (1000 * 60 * 60 * 24)
       ))
     : null
+  
+  const loginEmail   = pool?.service_login_email
+  const loginPassword = pool?.service_password
+  const canViewCreds = ['in_escrow', 'active'].includes(membership.payment_status)
+  const [copiedField, setCopiedField] = React.useState(null)
+
+  const copyToClipboard = (text, field) => {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopiedField(field)
+      setTimeout(() => setCopiedField(null), 2000)
+    })
+  }
 
   return (
     <div style={{
@@ -151,6 +176,67 @@ function SubscriptionCard({ membership }) {
         ))}
       </div>
 
+      {/* ── Login Credentials ─────────────────────────────── */}
+      {canViewCreds && loginEmail && (
+        <div style={{ padding: '14px 22px', borderTop: '1px solid #F5F2EE', background: '#FAFAF8' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: showCreds ? 10 : 0 }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: '#0B3D2E', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              🔑 Login Credentials
+            </span>
+            <button
+              onClick={() => setShowCreds(!showCreds)}
+              style={{ fontSize: 12, fontWeight: 600, color: '#0B3D2E', background: '#E8F5EF', border: 'none', borderRadius: 6, padding: '4px 10px', cursor: 'pointer' }}
+            >
+              {showCreds ? 'Hide' : 'Reveal'}
+            </button>
+          </div>
+          {showCreds && (
+            <div style={{ background: '#F0F7F4', border: '1px solid #C8E6D8', borderRadius: 10, padding: '12px 14px', marginTop: 8, display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {/* Email row */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 11, color: '#888', fontWeight: 600, marginBottom: 3 }}>EMAIL / USERNAME</div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: '#111', wordBreak: 'break-all' }}>{loginEmail || '—'}</div>
+                </div>
+                {loginEmail && (
+                  <button onClick={() => copyToClipboard(loginEmail, 'email')}
+                    style={{ flexShrink: 0, fontSize: 12, fontWeight: 600, color: '#0B3D2E', background: copiedField==='email' ? '#C8E6D8' : '#fff', border: '1px solid #C8E6D8', borderRadius: 7, padding: '6px 12px', cursor: 'pointer' }}>
+                    {copiedField==='email' ? '✓ Copied' : 'Copy'}
+                  </button>
+                )}
+              </div>
+              {/* Divider */}
+              <div style={{ borderTop: '1px solid #C8E6D8' }} />
+              {/* Password row */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 11, color: '#888', fontWeight: 600, marginBottom: 3 }}>PASSWORD</div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: '#111', wordBreak: 'break-all', fontFamily: 'monospace' }}>
+                    {loginPassword || '—'}
+                  </div>
+                </div>
+                {loginPassword && (
+                  <button onClick={() => copyToClipboard(loginPassword, 'password')}
+                    style={{ flexShrink: 0, fontSize: 12, fontWeight: 600, color: '#0B3D2E', background: copiedField==='password' ? '#C8E6D8' : '#fff', border: '1px solid #C8E6D8', borderRadius: 7, padding: '6px 12px', cursor: 'pointer' }}>
+                    {copiedField==='password' ? '✓ Copied' : 'Copy'}
+                  </button>
+                )}
+              </div>
+              {membership.payment_status === 'in_escrow' && (
+                <div style={{ fontSize: 11.5, color: '#C97B1A', background: '#FFFBF0', border: '1px solid #F0D5A0', borderRadius: 7, padding: '8px 10px' }}>
+                  ⏳ Test these credentials and confirm they work within 48 hours to release payment to the host.
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+      {canViewCreds && !loginEmail && (
+        <div style={{ padding: '12px 22px', borderTop: '1px solid #F5F2EE', background: '#FAFAF8' }}>
+          <div style={{ fontSize: 12.5, color: '#C97B1A' }}>⏳ Host hasn't shared credentials yet. You'll be notified by email.</div>
+        </div>
+      )}
+
       {/* Host info footer */}
       <div style={{ padding: '12px 22px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -188,7 +274,8 @@ export default function MySubscriptions() {
 
   const firstName = profile?.full_name?.split(' ')[0] || user?.email?.split('@')[0] || 'Member'
 
-  const activeSubs   = memberships.filter(m => m.payment_status === 'active')
+  // Show both active AND in_escrow in the main tab — user paid, they should see their stuff
+  const activeSubs   = [...memberships.filter(m => m.payment_status === 'active'), ...escrowItems]
   const historySubs  = memberships.filter(m => ['failed', 'cancelled'].includes(m.payment_status))
   const totalMonthly = activeSubs.reduce((sum, m) => sum + parseFloat(m.pools?.split_price || 0), 0)
 
@@ -245,7 +332,9 @@ export default function MySubscriptions() {
               {[
                 { label: 'Marketplace',       path: '/' },
                 { label: 'My Subscriptions',  path: '/my-subscriptions' },
-                { label: 'Host Dashboard',     path: '/dashboard' },
+                profile?.payout_subaccount_code 
+                  ? { label: 'Host Dashboard',    path: '/dashboard' }
+                  : { label: 'Host a Pool',       path: '/create-pool' },
               ].map(link => (
                 <a key={link.label} href={link.path} style={{
                   fontSize: 13.5, fontWeight: link.path === '/my-subscriptions' ? 700 : 500,
@@ -355,8 +444,7 @@ export default function MySubscriptions() {
           {/* ── Tabs ─────────────────────────────────────────── */}
           <div style={{ display: 'flex', gap: 4, background: '#EDE8DF', borderRadius: 11, padding: 4, width: 'fit-content', marginBottom: 28 }}>
             {[
-              { key: 'active',  label: `Active (${activeSubs.length})` },
-              { key: 'escrow',  label: `Escrow (${escrowItems.length})` },
+              { key: 'active',  label: `My Subscriptions (${activeSubs.length})` },
               { key: 'history', label: `History (${historySubs.length})` },
             ].map(t => (
               <button
@@ -430,8 +518,11 @@ export default function MySubscriptions() {
                     </div>
                   ) : (
                     activeSubs.map(m => (
-                      <div key={m.id} className="sub-card">
+                      <div key={m.id} className="sub-card" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                         <SubscriptionCard membership={m} />
+                        {m.payment_status === 'in_escrow' && (
+                          <EscrowActions membership={m} onResolved={refetch} />
+                        )}
                       </div>
                     ))
                   )}
@@ -439,32 +530,7 @@ export default function MySubscriptions() {
               )}
 
               {/* ── ESCROW TAB ──────────────────────────────── */}
-              {tab === 'escrow' && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                  {escrowItems.length === 0 ? (
-                    <div style={{
-                      textAlign: 'center', padding: '60px 24px',
-                      background: '#fff', border: '1px solid #E2DAD0', borderRadius: 18,
-                    }}>
-                      <div style={{ fontSize: 36, marginBottom: 12 }}>✅</div>
-                      <div style={{ fontFamily: "'Bricolage Grotesque',sans-serif", fontSize: 18, fontWeight: 700, color: '#111', marginBottom: 6 }}>
-                        No pending confirmations
-                      </div>
-                      <p style={{ fontSize: 13.5, color: '#999' }}>All your payments are confirmed.</p>
-                    </div>
-                  ) : (
-                    // ── EscrowActions for each in_escrow membership ──
-                    escrowItems.map(m => (
-                      <div key={m.id} className="sub-card" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                        {/* Show the pool info above the action card */}
-                        <SubscriptionCard membership={m} />
-                        {/* The confirm / dispute action card */}
-                        <EscrowActions membership={m} onResolved={refetch} />
-                      </div>
-                    ))
-                  )}
-                </div>
-              )}
+
 
               {/* ── HISTORY TAB ─────────────────────────────── */}
               {tab === 'history' && (

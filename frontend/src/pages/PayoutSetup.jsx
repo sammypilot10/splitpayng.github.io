@@ -83,7 +83,7 @@ function Steps({ current }) {
 // ─────────────────────────────────────────────────────────────
 export default function PayoutSetup() {
   const navigate = useNavigate()
-  const { profile } = useAuth()
+  const { profile, user, fetchProfile } = useAuth()
 
   const [step,          setStep]          = useState(1)
   const [banks,         setBanks]         = useState([])
@@ -106,17 +106,35 @@ export default function PayoutSetup() {
 
   // ── Fetch bank list on mount ───────────────────────────────
   useEffect(() => {
-    const fetchBanks = async () => {
+    const init = async () => {
+      // Check via backend (avoids Supabase RLS/session issues)
+      try {
+        const meRes = await apiClient.get('/api/subaccounts/me')
+        if (meRes.data?.hasAccount) {
+          setStep(3)
+          setLoadingBanks(false)
+          return
+        }
+      } catch (e) {
+        // Not set up yet, continue to bank form
+      }
+      // Load bank list
       try {
         const res = await apiClient.get('/api/subaccounts/banks')
-        setBanks(res.data.banks || [])
+        const seen = new Set()
+        const unique = (res.data.banks || []).filter(b => {
+          if (seen.has(b.code)) return false
+          seen.add(b.code)
+          return true
+        })
+        setBanks(unique)
       } catch (err) {
         setServerError('Could not load bank list. Please refresh the page.')
       } finally {
         setLoadingBanks(false)
       }
     }
-    fetchBanks()
+    init()
   }, [])
 
   const filteredBanks = banks.filter(b =>
@@ -166,12 +184,14 @@ export default function PayoutSetup() {
         account_number: accountNumber.trim(),
         account_name:   resolvedName,
       })
+      if (user?.id) fetchProfile(user.id)
       setSuccess(true)
       setStep(3)
     } catch (err) {
       const data = err.response?.data
-      if (data?.subaccount_code) {
+      if (data?.subaccount_code || err.response?.status === 409) {
         // Already exists — treat as success
+        if (user?.id) fetchProfile(user.id)
         setSuccess(true)
         setStep(3)
       } else {

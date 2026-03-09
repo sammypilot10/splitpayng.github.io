@@ -14,7 +14,8 @@ const rateLimit  = require('express-rate-limit')
 const paymentRoutes    = require('./routes/payments')
 const subaccountRoutes = require('./routes/subaccounts')
 const escrowRoutes     = require('./routes/escrow')
-const poolRoutes       = require('./routes/pools')
+const poolRoutes        = require('./routes/pools')
+const membershipRoutes  = require('./routes/memberships')
 const originGuard      = require('./middleware/originGuard')
 
 const app  = express()
@@ -115,6 +116,7 @@ app.use('/api/payments',    apiLimiter,     paymentRoutes)
 app.use('/api/subaccounts', apiLimiter,     subaccountRoutes)
 app.use('/api/escrow',      apiLimiter,     escrowRoutes)
 app.use('/api/pools',       apiLimiter,     poolRoutes)
+app.use('/api/memberships', apiLimiter,     membershipRoutes)
 
 // ── Health check ──────────────────────────────────────────────
 app.get('/health', (req, res) => {

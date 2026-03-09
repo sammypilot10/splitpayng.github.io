@@ -12,6 +12,7 @@
 require('dotenv').config({ path: '../../.env' });
 const supabase = require('../utils/supabase');
 const paystack = require('./paystack');
+const email    = require('./emailService');
 
 const PLATFORM_FEE_PERCENT = parseFloat(process.env.PLATFORM_FEE_PERCENT) || 5;
 
@@ -100,6 +101,15 @@ async function billMembership(membership) {
       .from('memberships')
       .update({ payment_status: 'failed', updated_at: new Date().toISOString() })
       .eq('id', membership.id);
+
+    // Email the member about the failed recurring payment
+    await email.sendPaymentFailed({
+      memberEmail: userProfile.email,
+      memberName:  userProfile.full_name || userProfile.email,
+      serviceName: pool.service_name,
+      splitPrice:  splitPrice,
+      membershipId: membership.id,
+    });
 
     throw new Error(`Charge failed with status: ${chargeResult.status}`);
   }

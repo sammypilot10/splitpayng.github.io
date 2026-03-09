@@ -1,139 +1,110 @@
-// ============================================================
-// src/utils/paymentCallbackHandler.js
-//
-// SECURITY FIX (Step 5):
-// Previous version had a vulnerability — anyone could visit
-// /payment/callback?reference=someone_elses_reference and see
-// another person's payment result.
-//
-// Fix: After finding the transaction by reference, we verify
-// that the membership's user_id matches the currently logged-in
-// user's id. If they don't match, we reject the request.
-// ============================================================
-
 import { useState, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { supabase } from '../lib/supabase'
+
+const API = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000'
+
+function getTokenFromStorage() {
+  try {
+    const key = Object.keys(localStorage).find(
+      k => k.startsWith('sb-') && k.endsWith('-auth-token')
+    )
+    return key ? JSON.parse(localStorage.getItem(key))?.access_token : null
+  } catch { return null }
+}
 
 export function usePaymentCallback() {
   const navigate       = useNavigate()
   const [searchParams] = useSearchParams()
-  const [status,       setStatus]     = useState('verifying') // 'verifying' | 'success' | 'failed' | 'unauthorized'
+  const [status,       setStatus]     = useState('verifying')
   const [membership,   setMembership] = useState(null)
+  const [errorMsg,     setErrorMsg]   = useState('')
 
   useEffect(() => {
-    const reference = searchParams.get('reference') || searchParams.get('trxref')
+    // Try URL params first, then sessionStorage fallback
+    const reference = searchParams.get('reference') 
+      || searchParams.get('trxref')
+      || sessionStorage.getItem('pendingPaymentRef')
+
     if (!reference) {
       navigate('/', { replace: true })
       return
     }
+
+    // Clear sessionStorage ref so it doesn't persist
+    sessionStorage.removeItem('pendingPaymentRef')
+    sessionStorage.removeItem('pendingPoolId')
+
     verifyAndRoute(reference)
   }, [])
 
   const verifyAndRoute = async (reference) => {
     try {
-      // ── Step 1: Get the currently logged-in user ──────────
-      // If nobody is logged in, reject immediately.
-      const { data: { session }, error: sessionErr } = await supabase.auth.getSession()
+      const token = getTokenFromStorage()
 
-      if (sessionErr || !session?.user) {
-        console.warn('[CALLBACK] No active session — redirecting to auth')
-        navigate('/auth', { replace: true })
+      if (!token) {
+        setErrorMsg('You must be signed in to verify a payment.')
+        setStatus('unauthorized')
+        setTimeout(() => navigate('/auth', { replace: true }), 3000)
         return
       }
 
-      const currentUserId = session.user.id
-
-      // ── Step 2: Poll for the transaction result ───────────
-      const result = await pollForPaymentResult(reference, 12)
+      // Poll backend for payment result (backend polls Supabase with service key)
+      const result = await pollForPaymentResult(reference, token, 30)
 
       if (!result) {
-        // Timed out — payment still processing or reference invalid
+        setErrorMsg('Payment could not be verified. If money was taken, contact support.')
         setStatus('failed')
         return
       }
 
-      // ── Step 3: SECURITY CHECK ────────────────────────────
-      // Verify the membership on this transaction belongs to
-      // the currently logged-in user.
-      // This prevents user A from seeing user B's payment result
-      // by guessing a reference from the URL.
-      if (result.user_id !== currentUserId) {
-        console.warn(
-          `[CALLBACK] ⚠️ Ownership mismatch — ` +
-          `transaction owner: ${result.user_id}, ` +
-          `current user: ${currentUserId}`
-        )
+      if (result.__unauthorized) {
+        setErrorMsg('You are not authorized to view this payment result.')
         setStatus('unauthorized')
+        setTimeout(() => navigate('/auth', { replace: true }), 3000)
         return
       }
 
-      // ── Step 4: Set result based on payment status ────────
       setMembership(result)
 
       if (['active', 'in_escrow'].includes(result.payment_status)) {
         setStatus('success')
-        // Redirect to member dashboard after 3 seconds
         setTimeout(() => navigate('/my-subscriptions', { replace: true }), 3000)
       } else {
+        setErrorMsg('Payment was not completed. No money has been taken.')
         setStatus('failed')
       }
 
     } catch (err) {
-      console.error('[CALLBACK] Unexpected error:', err.message)
+      console.error('[paymentCallback]', err.message)
+      setErrorMsg('Something went wrong verifying your payment.')
       setStatus('failed')
     }
   }
 
-  return { status, membership }
+  return { status, membership, errorMsg }
 }
 
-
-// ── Poll Supabase every 1.5s for up to maxSeconds ────────────
-// The Paystack webhook fires asynchronously. We poll briefly
-// until the webhook updates the transaction from 'pending'.
-// We select user_id here so we can verify ownership above.
-async function pollForPaymentResult(reference, maxSeconds) {
-  const maxAttempts = Math.ceil(maxSeconds / 1.5)
+async function pollForPaymentResult(reference, token, maxSeconds) {
+  const maxAttempts = Math.ceil(maxSeconds / 2.5)
 
   for (let i = 0; i < maxAttempts; i++) {
-    const { data, error } = await supabase
-      .from('transactions')
-      .select(`
-        id,
-        status,
-        memberships (
-          id,
-          user_id,
-          payment_status,
-          pool_id,
-          pools ( service_name )
-        )
-      `)
-      .eq('paystack_reference', reference)
-      .single()
-
-    if (error) {
-      // Reference doesn't exist at all — stop polling
-      console.warn('[CALLBACK] Reference not found:', reference)
-      return null
+    try {
+      const res = await fetch(`${API}/api/payments/verify?reference=${encodeURIComponent(reference)}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      
+      if (res.status === 403) return { __unauthorized: true }
+      
+      if (res.ok) {
+        const data = await res.json()
+        if (data.membership) return data.membership
+      }
+    } catch (e) {
+      console.log('[poll] attempt', i+1, 'failed:', e.message)
     }
 
-    // Still pending — webhook hasn't fired yet, wait and retry
-    if (data.status === 'pending') {
-      await new Promise(r => setTimeout(r, 1500))
-      continue
-    }
-
-    // Webhook has processed it — return the membership data
-    // Flatten user_id up for easy access in the security check
-    return {
-      ...data.memberships,
-      transaction_status: data.status,
-    }
+    await new Promise(r => setTimeout(r, 2500))
   }
 
-  // Timed out after maxSeconds
-  console.warn('[CALLBACK] Polling timed out for reference:', reference)
   return null
 }

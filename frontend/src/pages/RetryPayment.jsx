@@ -50,7 +50,8 @@ export default function RetryPayment() {
 
   const fetchMembership = async () => {
     try {
-      const { data: { session } } = await supabase.auth.getSession()
+      const key = Object.keys(localStorage).find(k => k.startsWith('sb-') && k.endsWith('-auth-token'))
+      const session = key ? JSON.parse(localStorage.getItem(key)) : null
       if (!session?.user) {
         navigate('/auth', { replace: true })
         return

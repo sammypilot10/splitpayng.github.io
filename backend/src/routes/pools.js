@@ -18,6 +18,11 @@ const verifyAuth = require('../middleware/verifyAuth')
 
 const ENCRYPTION_KEY = process.env.SUBSCRIPTION_ENCRYPTION_KEY
 
+// ── Hash a pool join password ─────────────────────────────────
+function hashPoolPassword(plaintext) {
+  return crypto.createHash('sha256').update(plaintext.trim()).digest('hex')
+}
+
 // ── Encrypt the service password ─────────────────────────────
 // Uses AES-256-GCM. The IV is prepended to the ciphertext so
 // we can decrypt it later without storing it separately.
@@ -40,6 +45,50 @@ function encryptPassword(plaintext) {
 // ─────────────────────────────────────────────────────────────
 // POST /api/pools/create  — PROTECTED
 // ─────────────────────────────────────────────────────────────
+
+// ─────────────────────────────────────────────────────────────
+// GET /api/pools/mine  — PROTECTED — host's own pools
+// ─────────────────────────────────────────────────────────────
+router.get('/mine', verifyAuth, async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('pools')
+      .select(`
+        id, service_name, category, split_price, max_members,
+        current_members, is_public, pool_status,
+        memberships ( id, payment_status, user_id )
+      `)
+      .eq('owner_id', req.user.id)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return res.status(200).json({ pools: data || [] });
+  } catch (err) {
+    console.error('[POOLS] /mine error:', err.message);
+    return res.status(500).json({ error: 'Failed to fetch your pools.' });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────
+// GET /api/pools/public  — PUBLIC — marketplace listing
+// ─────────────────────────────────────────────────────────────
+router.get('/public', async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('pools')
+      .select('id, service_name, category, split_price, max_members, current_members, is_public, pool_status')
+      .eq('pool_status', 'active')
+      .eq('is_public', true)      // ← Only show public pools in the marketplace
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return res.status(200).json({ pools: data || [] });
+  } catch (err) {
+    console.error('[POOLS] /public error:', err.message);
+    return res.status(500).json({ error: 'Failed to fetch pools.' });
+  }
+});
+
 router.post('/create', verifyAuth, async (req, res) => {
   const userId = req.user.id // from verified JWT
 
@@ -83,6 +132,10 @@ router.post('/create', verifyAuth, async (req, res) => {
   if (!service_login_email?.trim())
     errors.push('Service login email is required.')
 
+  // Private pools must have a join password
+  if (!is_public && !req.body.pool_password?.trim())
+    errors.push('Private pools require a join password.')
+
   // Split price sanity check — can't be more than total cost
   if (Number(split_price) > Number(total_cost))
     errors.push('Split price cannot exceed the total subscription cost.')
@@ -113,6 +166,11 @@ router.post('/create', verifyAuth, async (req, res) => {
     //    The raw password never goes into the database
     const encryptedPassword = encryptPassword(service_password.trim())
 
+    // Hash the pool join password (only for private pools)
+    const hashedPoolPassword = (!is_public && req.body.pool_password?.trim())
+      ? hashPoolPassword(req.body.pool_password)
+      : null
+
     // 3. Insert the pool into Supabase
     const { data: pool, error: insertErr } = await supabase
       .from('pools')
@@ -130,6 +188,7 @@ router.post('/create', verifyAuth, async (req, res) => {
         pool_status:                'active',
         encrypted_service_password: encryptedPassword,
         service_login_email:        service_login_email.trim(),
+        pool_password_hash:         hashedPoolPassword,  // null for public pools
       })
       .select('id, service_name, is_public, split_price, max_members')
       .single()

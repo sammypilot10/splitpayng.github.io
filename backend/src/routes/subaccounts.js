@@ -26,6 +26,34 @@ router.get('/banks', async (req, res) => {
 
 
 // ─────────────────────────────────────────────────────────────
+
+// ─────────────────────────────────────────────────────────────
+// GET /api/subaccounts/me  — PROTECTED
+// Returns whether the user already has a payout account set up
+// ─────────────────────────────────────────────────────────────
+router.get('/me', verifyAuth, async (req, res) => {
+  try {
+    const { data: profile, error } = await supabase
+      .from('profiles')
+      .select('payout_subaccount_code, payout_account_number, payout_bank_code, full_name')
+      .eq('id', req.user.id)
+      .single();
+
+    if (error || !profile) {
+      return res.status(404).json({ hasAccount: false });
+    }
+
+    return res.status(200).json({
+      hasAccount: !!profile.payout_subaccount_code,
+      subaccount_code: profile.payout_subaccount_code || null,
+      account_number: profile.payout_account_number || null,
+    });
+  } catch (err) {
+    console.error('[SUBACCOUNT] /me error:', err.message);
+    return res.status(500).json({ hasAccount: false });
+  }
+});
+
 // POST /api/subaccounts/resolve  — PROTECTED
 // ─────────────────────────────────────────────────────────────
 router.post('/resolve', verifyAuth, async (req, res) => {
@@ -99,9 +127,9 @@ router.post('/create', verifyAuth, async (req, res) => {
     const { error: updateErr } = await supabase
       .from('profiles')
       .update({
-        payout_bank_code:       bank_code,
-        payout_account_number:  account_number,
-        payout_subaccount_code: subaccountData.subaccount_code,
+        payout_bank_code:       String(bank_code),
+        payout_account_number:  String(account_number),
+        payout_subaccount_code: String(subaccountData.subaccount_code),
         updated_at:             new Date().toISOString(),
       })
       .eq('id', userId);

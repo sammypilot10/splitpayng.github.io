@@ -16,6 +16,7 @@ import CreatePool       from './pages/CreatePool'
 import PayoutSetup      from './pages/PayoutSetup'
 import AdminDisputes    from './pages/AdminDisputes'
 import RetryPayment     from './pages/RetryPayment'
+import JoinPool        from './pages/JoinPool'
 import { useSessionGuard } from './hooks/useSessionGuard'
 
 export default function App() {
@@ -28,6 +29,7 @@ export default function App() {
           <Route path="/"                  element={<Marketplace />} />
           <Route path="/auth"              element={<Auth />} />
           <Route path="/payment/callback"  element={<PaymentCallback />} />
+          <Route path="/join/:id"          element={<JoinPool />} />
 
           {/* Protected routes — must be logged in */}
           <Route

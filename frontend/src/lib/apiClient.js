@@ -25,8 +25,26 @@
 //      one refresh runs at a time — others wait for it.
 // ============================================================
 
-import axios   from 'axios'
+import axios from 'axios'
 import { supabase } from './supabase'
+
+// ── Token cache ───────────────────────────────────────────────
+// Supabase has a lock bug in development that causes getSession()
+// to hang. We cache the token whenever we successfully get it
+// so requests can still be authorised even when getSession freezes.
+let cachedToken = null
+
+// Seed cache immediately from existing session on page load
+supabase.auth.getSession().then(({ data }) => {
+  if (data?.session?.access_token) {
+    cachedToken = data.session.access_token
+  }
+})
+
+// Keep cache updated on every auth state change
+supabase.auth.onAuthStateChange((_event, session) => {
+  cachedToken = session?.access_token || null
+})
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000'
 
@@ -54,24 +72,34 @@ function notifyRefreshListeners(newToken) {
 }
 
 
-// ── REQUEST interceptor ───────────────────────────────────────
-// Runs before every outgoing request.
-// getSession() internally checks if the token is close to
-// expiry and silently refreshes it if so — Supabase handles
-// this automatically. We just always use whatever it returns.
-apiClient.interceptors.request.use(
-  async (config) => {
-    try {
-      const { data: { session } } = await supabase.auth.getSession()
+// ── Get token synchronously from localStorage ─────────────────
+// Supabase stores the session in localStorage under a key like:
+// sb-<project-ref>-auth-token
+// This avoids ALL async getSession() calls and the lock bug entirely.
+function getTokenSync() {
+  try {
+    // Find the Supabase auth key in localStorage
+    const key = Object.keys(localStorage).find(k => k.startsWith('sb-') && k.endsWith('-auth-token'))
+    if (!key) return cachedToken
+    const raw = localStorage.getItem(key)
+    if (!raw) return cachedToken
+    const parsed = JSON.parse(raw)
+    const token = parsed?.access_token
+    if (token) cachedToken = token
+    return token || cachedToken
+  } catch {
+    return cachedToken
+  }
+}
 
-      if (session?.access_token) {
-        config.headers.Authorization = `Bearer ${session.access_token}`
-      }
-    } catch (err) {
-      // If getSession fails, send the request without a token.
-      // The server will return 401 and the response interceptor
-      // will handle the redirect.
-      console.warn('[apiClient] Could not get session:', err.message)
+// ── REQUEST interceptor ───────────────────────────────────────
+apiClient.interceptors.request.use(
+  (config) => {
+    const token = getTokenSync()
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`
+    } else {
+      console.warn('[apiClient] No token available')
     }
 
     return config

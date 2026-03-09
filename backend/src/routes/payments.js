@@ -15,6 +15,101 @@ const email         = require('../services/emailService')
 const PLATFORM_FEE_PERCENT = parseFloat(process.env.PLATFORM_FEE_PERCENT) || 5
 
 // ─────────────────────────────────────────────────────────────
+
+// ─────────────────────────────────────────────────────────────
+// GET /api/payments/verify?reference=xxx  — PROTECTED
+// Called by frontend after Paystack redirects back.
+// First checks our DB. If still pending, calls Paystack API
+// directly to confirm — then updates the DB if paid.
+// ─────────────────────────────────────────────────────────────
+router.get('/verify', verifyAuth, async (req, res) => {
+  const { reference } = req.query
+  if (!reference) return res.status(400).json({ error: 'reference is required.' })
+
+  try {
+    // Step 1: Look up transaction in our DB
+    const { data: txn } = await supabase
+      .from('transactions')
+      .select(`
+        id, status, paystack_reference,
+        memberships (
+          id, payment_status, pool_id, user_id,
+          pools ( service_name, is_public )
+        )
+      `)
+      .eq('paystack_reference', reference)
+      .single()
+
+    // Security: verify ownership
+    if (txn && txn.memberships?.user_id !== req.user.id) {
+      return res.status(403).json({ error: 'Unauthorized.' })
+    }
+
+    // Step 2: If already processed in DB, return it
+    if (txn && txn.status !== 'pending') {
+      return res.status(200).json({ membership: txn.memberships, status: txn.status })
+    }
+
+    // Step 3: Webhook hasn't fired yet — verify directly with Paystack
+    console.log('[VERIFY] Transaction still pending, checking Paystack directly for ref:', reference)
+    let paystackData
+    try {
+      paystackData = await paystack.verifyTransaction(reference)
+    } catch (e) {
+      console.error('[VERIFY] Paystack verify failed:', e.message)
+      return res.status(404).json({ error: 'Transaction not found.' })
+    }
+
+    if (!paystackData || paystackData.status !== 'success') {
+      console.log('[VERIFY] Paystack says payment not successful:', paystackData?.status)
+      return res.status(400).json({ error: 'Payment was not successful.' })
+    }
+
+    // Step 4: Payment confirmed by Paystack — update our DB now
+    // (webhook may still arrive later; idempotency key prevents double-processing)
+    const membershipId = paystackData.metadata?.membership_id
+    if (!membershipId) {
+      return res.status(400).json({ error: 'Missing membership metadata.' })
+    }
+
+    // Update transaction status
+    await supabase
+      .from('transactions')
+      .update({ status: 'success' })
+      .eq('paystack_reference', reference)
+
+    // Update membership to in_escrow (48hr escrow window)
+    const { data: membership } = await supabase
+      .from('memberships')
+      .update({ payment_status: 'in_escrow' })
+      .eq('id', membershipId)
+      .eq('user_id', req.user.id)
+      .select('id, payment_status, pool_id, user_id, pools(service_name, is_public)')
+      .single()
+
+    if (!membership) {
+      return res.status(400).json({ error: 'Could not update membership.' })
+    }
+
+    // Increment pool member count (safe — won't crash if RPC missing)
+    try {
+      const { error: rpcErr } = await supabase.rpc('increment_pool_members', { pool_id: membership.pool_id })
+      if (rpcErr) {
+        // Fallback: manual increment
+        const { data: pool } = await supabase.from('pools').select('current_members').eq('id', membership.pool_id).single()
+        if (pool) await supabase.from('pools').update({ current_members: (pool.current_members || 0) + 1 }).eq('id', membership.pool_id)
+      }
+    } catch(e) { console.warn('[VERIFY] Could not increment member count:', e.message) }
+
+    console.log('[VERIFY] ✅ Payment confirmed and membership updated for:', membershipId)
+    return res.status(200).json({ membership, status: 'success' })
+
+  } catch (err) {
+    console.error('[VERIFY] Error:', err.message)
+    return res.status(500).json({ error: 'Failed to verify payment.' })
+  }
+})
+
 // POST /api/payments/initialize  — PROTECTED
 // ─────────────────────────────────────────────────────────────
 router.post('/initialize', verifyAuth, async (req, res) => {
@@ -50,7 +145,25 @@ router.post('/initialize', verifyAuth, async (req, res) => {
     }
 
     if (['active', 'in_escrow'].includes(membership.payment_status)) {
-      return res.status(400).json({ error: 'Membership is already active or pending confirmation.' })
+      // Already paid — just tell frontend to go to subscriptions
+      return res.status(200).json({ already_paid: true, redirect: '/my-subscriptions' })
+    }
+
+    // If pending, check if there's already an unpaid transaction we can reuse
+    if (membership.payment_status === 'pending') {
+      const { data: existingTxn } = await supabase
+        .from('transactions')
+        .select('paystack_reference, access_code')
+        .eq('membership_id', membership_id)
+        .eq('status', 'pending')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      
+      if (existingTxn?.paystack_reference) {
+        // Re-initialize a fresh transaction (old access_code may be expired)
+        console.log('[INITIALIZE] Pending membership — creating fresh transaction')
+      }
     }
 
     const { data: profile, error: profErr } = await supabase
@@ -67,15 +180,26 @@ router.post('/initialize', verifyAuth, async (req, res) => {
     const platformFeeNaira = parseFloat((splitPriceNaira * PLATFORM_FEE_PERCENT / 100).toFixed(2))
     const subaccountCode   = pool.profiles?.payout_subaccount_code || null
 
-    const paystackData = await paystack.initializeTransaction({
-      email:            profile.email,
-      amountNaira:      splitPriceNaira,
-      membershipId:     membership_id,
-      poolId:           pool.id,
-      isPublicPool:     pool.is_public,
-      subaccountCode,
-      platformFeeNaira,
-    })
+    // Initialize with retry on timeout
+    let paystackData
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        paystackData = await paystack.initializeTransaction({
+          email:            profile.email,
+          amountNaira:      splitPriceNaira,
+          membershipId:     membership_id,
+          poolId:           pool.id,
+          isPublicPool:     pool.is_public,
+          subaccountCode,
+          platformFeeNaira,
+        })
+        break // success — exit retry loop
+      } catch (paystackErr) {
+        console.warn(`[INITIALIZE] Paystack attempt ${attempt} failed:`, paystackErr.message)
+        if (attempt === 3) throw paystackErr
+        await new Promise(r => setTimeout(r, 2000 * attempt)) // wait 2s, 4s
+      }
+    }
 
     const { error: txnErr } = await supabase
       .from('transactions')
